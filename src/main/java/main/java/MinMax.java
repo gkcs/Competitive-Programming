@@ -1,22 +1,28 @@
 package main.java;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.*;
 
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Long.MIN_VALUE;
 
 class ChainReaction {
-    public static void main(String[] args) {
-        final int[][][] board = {
-                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
-                {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
-                {{0, 0}, {0, 0}, {2, 1}, {1, 3}, {2, 1}},
-                {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
-                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
-        System.out.println(new MinMax().findBestMove(board, 1));
+    public static void main(String[] args) throws IOException {
+        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
+        final int[][][] board = new int[5][5][2];
+        for (int i = 0; i < board.length; i++) {
+            final String cols[] = bufferedReader.readLine().split(" ");
+            for (int j = 0; j < board[i].length; j++) {
+                for (int k = 0; k < board[i][j].length; k++) {
+                    board[i][j][k] = cols[j].charAt(k) - '0';
+                }
+            }
+        }
+        System.out.println(new MinMax().findBestMove(board, Integer.parseInt(bufferedReader.readLine())));
     }
 }
-
 
 /**
  * A DFS results in too many resources consumed for the first possibility. A breadth first search is a better choice
@@ -44,12 +50,18 @@ public class MinMax {
         Move bestMove = allPossibleMoves[0];
         for (final Move possibleMove : allPossibleMoves) {
             final Board movedBoard = board.makeMove(possibleMove);
-            final long moveValue = boards.containsKey(movedBoard)
-                    ? boards.get(movedBoard)
-                    : movedBoard.isTerminalState()
-                    ? movedBoard.getValue()
-                    : evaluate(movedBoard, flip(player));
-            boards.put(movedBoard, moveValue);
+            final long moveValue;
+            if (boards.containsKey(movedBoard)) {
+                moveValue = boards.get(movedBoard);
+            } else if (movedBoard.isTerminalState()) {
+                moveValue = movedBoard.getValue();
+            } else {
+                moveValue = evaluate(movedBoard, flip(player));
+                boards.put(movedBoard, moveValue);
+                boards.put(movedBoard.flipOnX(), moveValue);
+                boards.put(movedBoard.flipOnY(), moveValue);
+                boards.put(movedBoard.flipOnDiag(), moveValue);
+            }
             final long relevantValue = value(moveValue, player);
             board.undo();
             if (relevantValue > max) {
@@ -66,17 +78,23 @@ public class MinMax {
     private long evaluate(final Board board, final int player) {
         long max = MIN_VALUE;
         computations++;
-        if (computations > 50) {
+        if (computations > 5000) {
             return -max;
         }
         for (final Move possibleMove : board.getAllPossibleMoves(player)) {
             final Board movedBoard = board.makeMove(possibleMove);
-            final long moveValue = boards.containsKey(movedBoard)
-                    ? boards.get(movedBoard)
-                    : movedBoard.isTerminalState()
-                    ? movedBoard.getValue()
-                    : evaluate(movedBoard, flip(player));
-            boards.put(movedBoard, moveValue);
+            final long moveValue;
+            if (boards.containsKey(movedBoard)) {
+                moveValue = boards.get(movedBoard);
+            } else if (movedBoard.isTerminalState()) {
+                moveValue = movedBoard.getValue();
+            } else {
+                moveValue = evaluate(movedBoard, flip(player));
+                boards.put(movedBoard, moveValue);
+                boards.put(movedBoard.flipOnX(), moveValue);
+                boards.put(movedBoard.flipOnY(), moveValue);
+                boards.put(movedBoard.flipOnDiag(), moveValue);
+            }
             final long relevantValue = value(moveValue, player);
             board.undo();
             if (relevantValue > max) {
@@ -260,11 +278,20 @@ class Board {
      */
     Board undo() {
         /*
-         * What does move do? Convert and add. Then it explodes if necessary. Which in turn calls play on other points.
+         * What does a move do? Convert if necessary, and adds. Then it explodes if necessary. Which in turn calls play
+         * on other points.
          *
-         * So then undo should convert and subtract. The current point was definitely belonging to player.
+         * So then undo should convert and un-explode if necessary and subtract.
          * Explosions need to be handled differently. An inverse explosion is needed if this point is at 0 now. Any
          * other score is ambiguous.
+         *
+         *
+         *    X = X -1
+         *
+         *    Consider a list of board positions, with their corresponding affiliations and strengths. Maintaining a
+         *    list of each board position owner and strength based on timestamp, we can move to any given point in
+         *    time through the undo operation.
+         *
          */
         return previousStates.remove(previousStates.size() - 1);
     }
@@ -281,7 +308,7 @@ class Board {
         final List<Move> list = new ArrayList<>();
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                if (player == board[i][j][0]) {
+                if (player == board[i][j][0] || board[i][j][0] == 0) {
                     list.add(new Move(i, j, player));
                 }
             }
@@ -306,6 +333,43 @@ class Board {
                 ", first=" + first +
                 ", second=" + second +
                 '}';
+    }
+
+    Board flipOnX() {
+        final int rawBoard[][][] = new int[BOARD_SIZE][][];
+        final Board flipped = new Board(rawBoard);
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            rawBoard[i] = board[BOARD_SIZE - i - 1];
+        }
+        flipped.first = first;
+        flipped.second = second;
+        return flipped;
+    }
+
+    Board flipOnY() {
+        final int rawBoard[][][] = new int[BOARD_SIZE][][];
+        final Board flipped = new Board(rawBoard);
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                rawBoard[i][j] = board[i][BOARD_SIZE - j - 1];
+            }
+        }
+        flipped.first = first;
+        flipped.second = second;
+        return flipped;
+    }
+
+    Board flipOnDiag() {
+        final int rawBoard[][][] = new int[BOARD_SIZE][][];
+        final Board flipped = new Board(rawBoard);
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                rawBoard[i][j] = board[j][i];
+            }
+        }
+        flipped.first = first;
+        flipped.second = second;
+        return flipped;
     }
 }
 
