@@ -22,6 +22,9 @@ class ChainReaction {
  * A DFS results in too many resources consumed for the first possibility. A breadth first search is a better choice
  * selection strategy. A queue of positions is maintained. Each position has a corresponding parent position, which
  * helps move up the tree when the current position is evaluated.
+ * <p>
+ * A better approach will be iterative deepening. Local search around an 'interesting' area is feasible in these
+ * scenarios.
  */
 public class MinMax {
     private final Map<Board, Long> boards = new HashMap<>();
@@ -63,7 +66,6 @@ public class MinMax {
     private long evaluate(final Board board, final int player) {
         long max = MIN_VALUE;
         computations++;
-        System.out.println(board);
         if (computations > 50) {
             return -max;
         }
@@ -119,6 +121,11 @@ class Move {
     }
 }
 
+/**
+ * The board contains a list of all of its parents. Each time someone asks us to undo the board, we fall back to a
+ * copy of the board in the previous state. Whenever a state changing move is made on the board, the current state is
+ * stored as a parent in memory, and another immutable Board is returned.
+ */
 class Board {
     private List<Board> previousStates = new ArrayList<>();
     private final int[][][] board;
@@ -169,10 +176,14 @@ class Board {
                 }
             }
         }
-        System.out.println(Arrays.deepToString(neighbours));
     }
 
     Board makeMove(final Move move) {
+        previousStates.add(getBoardCopy(board));
+        return play(move);
+    }
+
+    private Board getBoardCopy(final int board[][][]) {
         final int copyBoard[][][] = new int[BOARD_SIZE][BOARD_SIZE][2];
         final Board copy = new Board(copyBoard);
         for (int i = 0; i < BOARD_SIZE; i++) {
@@ -182,8 +193,7 @@ class Board {
         }
         copy.first = first;
         copy.second = second;
-        previousStates.add(copy);
-        return play(move);
+        return copy;
     }
 
     private Board play(final Move move) {
@@ -201,7 +211,7 @@ class Board {
         return this;
     }
 
-    private void setCellBlankIfRequired(Move move) {
+    private void setCellBlankIfRequired(final Move move) {
         if (board[move.x][move.y][1] == 0) {
             board[move.x][move.y][0] = 0;
             if (move.player == 1) {
@@ -246,7 +256,7 @@ class Board {
 
     /**
      * We need to find the inverse of the function play.
-     * As play(board, move) = board' , we look for the function play^-1(board', move) such that it gives us board.
+     * As play(board, move) = board', we look for the function play^-1(board', move) such that it gives us board.
      */
     Board undo() {
         /*
@@ -279,7 +289,41 @@ class Board {
         return list.toArray(new Move[list.size()]);
     }
 
-    private boolean deepEqualsArray(final int[][][] other) {
+    @Override
+    public boolean equals(Object o) {
+        return this == o || Utils.deepEqualsArray(board, ((Board) o).board);
+    }
+
+    @Override
+    public int hashCode() {
+        return Utils.deepHashCodeArray(board);
+    }
+
+    @Override
+    public String toString() {
+        return "Board{" +
+                "board=" + Arrays.deepToString(board) +
+                ", first=" + first +
+                ", second=" + second +
+                '}';
+    }
+}
+
+class Utils {
+    static int deepHashCodeArray(int board[][][]) {
+        long x = 0;
+        for (final int[][] row : board) {
+            for (final int[] col : row) {
+                x <<= 1;
+                x |= col[0] - 1;
+                x <<= 2;
+                x |= col[1];
+            }
+        }
+        return Long.hashCode(x);
+    }
+
+    static boolean deepEqualsArray(final int board[][][], final int[][][] other) {
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[i].length; j++) {
                 for (int k = 0; k < board[i].length; k++) {
@@ -290,38 +334,5 @@ class Board {
             }
         }
         return true;
-    }
-
-    private int deepHashCodeArray() {
-        long x = 0;
-        for (final int[][] row : board) {
-            for (final int[] col : row) {
-                for (final int content : col) {
-                    x <<= 2;
-                    x |= content;
-                }
-            }
-        }
-        return Long.hashCode(x);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return this == o || !(o == null || getClass() != o.getClass()) && deepEqualsArray(((Board) o).board);
-
-    }
-
-    @Override
-    public int hashCode() {
-        return deepHashCodeArray();
-    }
-
-    @Override
-    public String toString() {
-        return "Board{" +
-                "board=" + Arrays.deepToString(board) +
-                ", first=" + first +
-                ", second=" + second +
-                '}';
     }
 }
