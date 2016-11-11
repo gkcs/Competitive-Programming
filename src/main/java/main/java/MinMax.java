@@ -17,6 +17,12 @@ class ChainReaction {
     }
 }
 
+
+/**
+ * A DFS results in too many resources consumed for the first possibility. A breadth first search is a better choice
+ * selection strategy. A queue of positions is maintained. Each position has a corresponding parent position, which
+ * helps move up the tree when the current position is evaluated.
+ */
 public class MinMax {
     private final Map<Board, Long> boards = new HashMap<>();
     private int computations;
@@ -57,7 +63,8 @@ public class MinMax {
     private long evaluate(final Board board, final int player) {
         long max = MIN_VALUE;
         computations++;
-        if (computations > 500) {
+        System.out.println(board);
+        if (computations > 50) {
             return -max;
         }
         for (final Move possibleMove : board.getAllPossibleMoves(player)) {
@@ -118,32 +125,51 @@ class Board {
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
     private byte first, second;
+    private boolean terminated;
 
     Board(final int[][][] board) {
         this.board = board;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j][0] == 1) {
+                    first++;
+                } else if (board[i][j][0] == 2) {
+                    second++;
+                }
+            }
+        }
     }
 
     static void setNeighbours() {
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                final int x = i * j;
-                final int near[] = {x + 1, x + BOARD_SIZE, x - 1, x - BOARD_SIZE};
-                int directions = 4;
+                final long x = i * BOARD_SIZE + j;
+                final List<Long> near = new ArrayList<>();
+                near.add(x + 1);
+                near.add(x + BOARD_SIZE);
+                near.add(x - 1);
+                near.add(x - BOARD_SIZE);
                 if (i == 0) {
-                    --directions;
+                    near.remove(x - BOARD_SIZE);
                 }
                 if (j == 0) {
-                    --directions;
+                    near.remove(x - 1);
                 }
                 if (i == BOARD_SIZE - 1) {
-                    --directions;
+                    near.remove(x + BOARD_SIZE);
                 }
                 if (j == BOARD_SIZE - 1) {
-                    --directions;
+                    near.remove(x + 1);
                 }
-                neighbours[i][j] = Arrays.copyOf(near, directions);
+                neighbours[i][j] = new int[near.size()];
+                for (int k = 0; k < near.size(); k++) {
+                    if (near.get(k) >= 0 && near.get(k) <= BOARD_SIZE * BOARD_SIZE) {
+                        neighbours[i][j][k] = Math.toIntExact(near.get(k));
+                    }
+                }
             }
         }
+        System.out.println(Arrays.deepToString(neighbours));
     }
 
     Board makeMove(final Move move) {
@@ -151,38 +177,42 @@ class Board {
         final Board copy = new Board(copyBoard);
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j][0] == 1) {
-                    copy.first++;
-                } else if (board[i][j][0] == 2) {
-                    copy.second++;
-                }
                 System.arraycopy(board[i][j], 0, copyBoard[i][j], 0, board[i][j].length);
             }
         }
+        copy.first = first;
+        copy.second = second;
         previousStates.add(copy);
         return play(move);
     }
 
     private Board play(final Move move) {
-        if (isTerminalState()) {
-            return this;
-        }
         updateScores(move);
         board[move.x][move.y][0] = move.player;
         board[move.x][move.y][1]++;
+        if (isTerminalState()) {
+            return this;
+        }
         if (neighbours[move.x][move.y].length <= board[move.x][move.y][1]) {
             board[move.x][move.y][1] = board[move.x][move.y][1] - neighbours[move.x][move.y].length;
-            if (board[move.x][move.y][1] == 0) {
-                board[move.x][move.y][0] = 0;
-                if (move.player == 1) {
-                    first--;
-                } else {
-                    second--;
-                }
-            }
+            setCellBlankIfRequired(move);
             explode(move.x, move.y, move.player);
         }
         return this;
+    }
+
+    private void setCellBlankIfRequired(Move move) {
+        if (board[move.x][move.y][1] == 0) {
+            board[move.x][move.y][0] = 0;
+            if (move.player == 1) {
+                first--;
+            } else {
+                second--;
+            }
+        }
+        if (first == 0 || second == 0) {
+            terminated = true;
+        }
     }
 
     private void updateScores(final Move move) {
@@ -192,8 +222,8 @@ class Board {
                     first++;
                     second--;
                 } else {
-                    second++;
                     first--;
+                    second++;
                 }
             } else {
                 if (move.player == 1) {
@@ -202,6 +232,9 @@ class Board {
                     second++;
                 }
             }
+        }
+        if (first == 0 || second == 0) {
+            terminated = true;
         }
     }
 
@@ -227,7 +260,7 @@ class Board {
     }
 
     boolean isTerminalState() {
-        return (first == 0 || second == 0) && ((first | second) != 0);
+        return terminated;
     }
 
     int getValue() {
@@ -281,5 +314,14 @@ class Board {
     @Override
     public int hashCode() {
         return deepHashCodeArray();
+    }
+
+    @Override
+    public String toString() {
+        return "Board{" +
+                "board=" + Arrays.deepToString(board) +
+                ", first=" + first +
+                ", second=" + second +
+                '}';
     }
 }
