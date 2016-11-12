@@ -23,13 +23,15 @@ class ChainReaction {
         final int player = Integer.parseInt(bufferedReader.readLine());
         final MinMax minMax = new MinMax();
         String bestMove = "LOL";
-        for (int i = 2; i < 5 && minMax.computations < 25000; i++) {
+        int i = 2;
+        for (; i < 60 && minMax.computations < MinMax.COMPUTATION_LIMIT; i++) {
             try {
                 bestMove = minMax.findBestMove(Board.getCopy(board), player, i);
             } catch (Exception ignore) {
             }
         }
         System.out.println(bestMove);
+        System.out.println(minMax.computations + " " + i + " " + minMax.cacheHits);
     }
 }
 
@@ -42,7 +44,8 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
-    public int computations = 0;
+    static final int COMPUTATION_LIMIT = 2000000;
+    public int computations = 0, cacheHits = 0;
     private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
 
@@ -51,7 +54,6 @@ public class MinMax {
     }
 
     public MinMax() {
-        Board.clearPreviousStates();
     }
 
     public String findBestMove(final int[][][] rawBoard, final int player, int level) {
@@ -95,10 +97,9 @@ public class MinMax {
 
     private long evaluate(final Board board, final int player, final int level) {
         long max = MIN_VALUE;
-        if (computations > 65000) {
+        if (computations > COMPUTATION_LIMIT) {
             throw new RuntimeException("Time out...");
         }
-        computations++;
         if (level <= 0) {
             max = value(board.heuristicValue(), player);
         } else {
@@ -108,11 +109,13 @@ public class MinMax {
                 final Representation representation = movedBoard.representation();
                 if (boards.containsKey(representation)) {
                     moveValue = boards.get(representation);
+                    cacheHits++;
                 } else {
                     final Integer terminalValue = movedBoard.terminalValue();
                     if (terminalValue != null) {
                         moveValue = value(terminalValue, possibleMove.player);
                     } else {
+                        computations++;
                         moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1);
                     }
                     populateMap(moveValue, movedBoard);
@@ -167,7 +170,7 @@ class Move {
  * stored as a parent in memory, and another immutable Board is returned.
  */
 class Board {
-    private static List<int[][][]> previousStates = new ArrayList<>();
+    private final List<int[][][]> previousStates = new ArrayList<>();
     private int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
@@ -385,10 +388,6 @@ class Board {
             }
         }
         return copyBoard;
-    }
-
-    static void clearPreviousStates() {
-        previousStates = new ArrayList<>();
     }
 }
 
