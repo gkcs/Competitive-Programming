@@ -1,7 +1,11 @@
 import main.java.MinMax;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matcher;
 import org.junit.Test;
 
+import static org.hamcrest.CoreMatchers.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class ChainReactionTest {
     @Test
@@ -34,6 +38,6 @@ public class ChainReactionTest {
                 {{2, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {2, 2}},
                 {{0, 0}, {0, 0}, {0, 0}, {2, 2}, {0, 0}}};
-        assertEquals("0 2", new MinMax().findBestMove(board, 1));
+        assertThat(new MinMax().findBestMove(board, 1), anyOf(containsString("0 2"), containsString("0 3")));
     }
 }
