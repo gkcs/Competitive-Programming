@@ -25,4 +25,15 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         assertEquals("1 3", new MinMax().findBestMove(board, 1));
     }
+
+    @Test
+    public void captureOn1_3() {
+        final int[][][] board = {
+                {{2, 1}, {2, 2}, {1, 2}, {1, 2}, {2, 1}},
+                {{2, 2}, {2, 2}, {1, 1}, {0, 0}, {0, 0}},
+                {{2, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {2, 2}},
+                {{0, 0}, {0, 0}, {0, 0}, {2, 2}, {0, 0}}};
+        assertEquals("0 2", new MinMax().findBestMove(board, 1));
+    }
 }

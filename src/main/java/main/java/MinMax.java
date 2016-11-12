@@ -5,8 +5,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
 
-import static java.lang.Long.MAX_VALUE;
-import static java.lang.Long.MIN_VALUE;
+import static main.java.MinMax.MAX_VALUE;
+import static main.java.MinMax.MIN_VALUE;
 
 class ChainReaction {
     public static void main(String[] args) throws IOException {
@@ -33,8 +33,9 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
+    private static final int LEVEL = 5;
     private final Map<Board, Long> boards = new HashMap<>();
-    private int computations;
+    static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
 
     public MinMax() {
         Board.setNeighbours();
@@ -49,21 +50,7 @@ public class MinMax {
         }
         Move bestMove = allPossibleMoves[0];
         for (final Move possibleMove : allPossibleMoves) {
-            final Board movedBoard = board.makeMove(possibleMove);
-            final long moveValue;
-            if (boards.containsKey(movedBoard)) {
-                moveValue = boards.get(movedBoard);
-            } else if (movedBoard.isTerminalState()) {
-                moveValue = movedBoard.getValue();
-            } else {
-                moveValue = evaluate(movedBoard, flip(player));
-                boards.put(movedBoard, moveValue);
-                boards.put(movedBoard.flipOnX(), moveValue);
-                boards.put(movedBoard.flipOnY(), moveValue);
-                boards.put(movedBoard.flipOnDiag(), moveValue);
-            }
-            final long relevantValue = value(moveValue, player);
-            board.undo();
+            final long relevantValue = getMoveValue(player, board, possibleMove, LEVEL);
             if (relevantValue > max) {
                 max = relevantValue;
                 bestMove = possibleMove;
@@ -75,28 +62,13 @@ public class MinMax {
         return bestMove.describe();
     }
 
-    private long evaluate(final Board board, final int player) {
+    private long evaluate(final Board board, final int player, int level) {
         long max = MIN_VALUE;
-        computations++;
-        if (computations > 5000) {
-            return -max;
+        if (level <= 0) {
+            return -value(board.heuristicValue(), player);
         }
         for (final Move possibleMove : board.getAllPossibleMoves(player)) {
-            final Board movedBoard = board.makeMove(possibleMove);
-            final long moveValue;
-            if (boards.containsKey(movedBoard)) {
-                moveValue = boards.get(movedBoard);
-            } else if (movedBoard.isTerminalState()) {
-                moveValue = movedBoard.getValue();
-            } else {
-                moveValue = evaluate(movedBoard, flip(player));
-                boards.put(movedBoard, moveValue);
-                boards.put(movedBoard.flipOnX(), moveValue);
-                boards.put(movedBoard.flipOnY(), moveValue);
-                boards.put(movedBoard.flipOnDiag(), moveValue);
-            }
-            final long relevantValue = value(moveValue, player);
-            board.undo();
+            final long relevantValue = getMoveValue(player, board, possibleMove, level - 1);
             if (relevantValue > max) {
                 max = relevantValue;
                 if (max == MAX_VALUE) {
@@ -105,6 +77,28 @@ public class MinMax {
             }
         }
         return -max;
+    }
+
+    private long getMoveValue(int player, Board board, Move possibleMove, int level) {
+        final long moveValue;
+        final Board movedBoard = board.makeMove(possibleMove);
+        if (boards.containsKey(movedBoard)) {
+            moveValue = boards.get(movedBoard);
+        } else {
+            final Integer terminalValue = movedBoard.terminalValue();
+            if (terminalValue != null) {
+                moveValue = terminalValue;
+            } else {
+                moveValue = evaluate(movedBoard, flip(player), level);
+            }
+            boards.put(movedBoard, moveValue);
+            boards.put(movedBoard.flipOnX(), moveValue);
+            boards.put(movedBoard.flipOnY(), moveValue);
+            boards.put(movedBoard.flipOnDiag(), moveValue);
+        }
+        final long relevantValue = value(moveValue, player);
+        movedBoard.undo();
+        return relevantValue;
     }
 
     private long value(final long moveValue, final int player) {
@@ -149,20 +143,9 @@ class Board {
     private final int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
-    private byte first, second;
-    private boolean terminated;
 
     Board(final int[][][] board) {
         this.board = board;
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j][0] == 1) {
-                    first++;
-                } else if (board[i][j][0] == 2) {
-                    second++;
-                }
-            }
-        }
     }
 
     static void setNeighbours() {
@@ -209,61 +192,23 @@ class Board {
                 System.arraycopy(board[i][j], 0, copyBoard[i][j], 0, board[i][j].length);
             }
         }
-        copy.first = first;
-        copy.second = second;
         return copy;
     }
 
     private Board play(final Move move) {
-        updateScores(move);
         board[move.x][move.y][0] = move.player;
         board[move.x][move.y][1]++;
-        if (isTerminalState()) {
+        if (terminalValue() != null) {
             return this;
         }
         if (neighbours[move.x][move.y].length <= board[move.x][move.y][1]) {
             board[move.x][move.y][1] = board[move.x][move.y][1] - neighbours[move.x][move.y].length;
-            setCellBlankIfRequired(move);
+            if (board[move.x][move.y][1] == 0) {
+                board[move.x][move.y][0] = 0;
+            }
             explode(move.x, move.y, move.player);
         }
         return this;
-    }
-
-    private void setCellBlankIfRequired(final Move move) {
-        if (board[move.x][move.y][1] == 0) {
-            board[move.x][move.y][0] = 0;
-            if (move.player == 1) {
-                first--;
-            } else {
-                second--;
-            }
-        }
-        if (first == 0 || second == 0) {
-            terminated = true;
-        }
-    }
-
-    private void updateScores(final Move move) {
-        if (board[move.x][move.y][0] != move.player) {
-            if (board[move.x][move.y][0] != 0) {
-                if (move.player == 1) {
-                    first++;
-                    second--;
-                } else {
-                    first--;
-                    second++;
-                }
-            } else {
-                if (move.player == 1) {
-                    first++;
-                } else {
-                    second++;
-                }
-            }
-        }
-        if (first == 0 || second == 0) {
-            terminated = true;
-        }
     }
 
     private void explode(final int x, final int y, final int player) {
@@ -296,12 +241,23 @@ class Board {
         return previousStates.remove(previousStates.size() - 1);
     }
 
-    boolean isTerminalState() {
-        return terminated;
-    }
-
-    int getValue() {
-        return first - second;
+    Integer terminalValue() {
+        int first = 0;
+        int second = 0;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j][0] == 1) {
+                    first++;
+                } else if (board[i][j][0] == 2) {
+                    second++;
+                }
+            }
+        }
+        if ((first + second != 0) && (first == 0 || second == 0)) {
+            return first == 0 ? MIN_VALUE : MAX_VALUE;
+        } else {
+            return null;
+        }
     }
 
     Move[] getAllPossibleMoves(final int player) {
@@ -328,11 +284,7 @@ class Board {
 
     @Override
     public String toString() {
-        return "Board{" +
-                "board=" + Arrays.deepToString(board) +
-                ", first=" + first +
-                ", second=" + second +
-                '}';
+        return Arrays.deepToString(board);
     }
 
     Board flipOnX() {
@@ -341,35 +293,56 @@ class Board {
         for (int i = 0; i < BOARD_SIZE; i++) {
             rawBoard[i] = board[BOARD_SIZE - i - 1];
         }
-        flipped.first = first;
-        flipped.second = second;
         return flipped;
     }
 
     Board flipOnY() {
-        final int rawBoard[][][] = new int[BOARD_SIZE][][];
+        final int rawBoard[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
         final Board flipped = new Board(rawBoard);
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
                 rawBoard[i][j] = board[i][BOARD_SIZE - j - 1];
             }
         }
-        flipped.first = first;
-        flipped.second = second;
         return flipped;
     }
 
     Board flipOnDiag() {
-        final int rawBoard[][][] = new int[BOARD_SIZE][][];
+        final int rawBoard[][][] = new int[BOARD_SIZE][BOARD_SIZE][2];
         final Board flipped = new Board(rawBoard);
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
                 rawBoard[i][j] = board[j][i];
             }
         }
-        flipped.first = first;
-        flipped.second = second;
         return flipped;
+    }
+
+    int heuristicValue() {
+        int first = 0;
+        int second = 0;
+        int firstExplosives = 0;
+        int secondExplosives = 0;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j][0] == 1) {
+                    first++;
+                    if (board[i][j][1] == neighbours[i][j].length - 1) {
+                        firstExplosives++;
+                    }
+                } else if (board[i][j][0] == 2) {
+                    second++;
+                    if (board[i][j][1] == neighbours[i][j].length - 1) {
+                        secondExplosives++;
+                    }
+                }
+            }
+        }
+        if ((first + second != 0) && (first == 0 || second == 0)) {
+            return first == 0 ? MIN_VALUE : MAX_VALUE;
+        } else {
+            return 100 * (first - second) + 100 * (firstExplosives - secondExplosives);
+        }
     }
 }
 
@@ -390,7 +363,7 @@ class Utils {
     static boolean deepEqualsArray(final int board[][][], final int[][][] other) {
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[i].length; j++) {
-                for (int k = 0; k < board[i].length; k++) {
+                for (int k = 0; k < board[i][j].length; k++) {
                     if (board[i][j][k] != other[i][j][k]) {
                         return false;
                     }
