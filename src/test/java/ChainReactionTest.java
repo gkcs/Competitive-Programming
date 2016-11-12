@@ -21,6 +21,19 @@ public class ChainReactionTest {
     }
 
     @Test
+    public void firstBlock() {
+        final int[][][] board = {
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
+        MinMax minMax = new MinMax();
+        System.out.println(minMax.findBestMove(board, 1, 3));
+        System.out.println(minMax.computations);
+    }
+
+    @Test
     public void upperBlockShouldBeChosen() {
         final int[][][] board = {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
@@ -31,7 +44,7 @@ public class ChainReactionTest {
 
         MinMax minMax = new MinMax();
         String bestMove = minMax.findBestMove(board, 1, 3);
-//        assertEquals("1 3", bestMove);
+        System.out.println(bestMove);
         System.out.println(minMax.computations);
     }
 

@@ -28,6 +28,8 @@ class ChainReaction {
             try {
                 bestMove = minMax.findBestMove(Board.getCopy(board), player, i);
             } catch (Exception ignore) {
+            } finally {
+                minMax.clearCache();
             }
         }
         System.out.println(bestMove);
@@ -44,7 +46,7 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
-    static final int COMPUTATION_LIMIT = 2000000;
+    static final int COMPUTATION_LIMIT = 650000;
     public int computations = 0, cacheHits = 0;
     private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -139,6 +141,10 @@ public class MinMax {
     private int flip(final int player) {
         return ~player & 3;
     }
+
+    void clearCache() {
+        Board.previousStates.clear();
+    }
 }
 
 class Move {
@@ -170,7 +176,7 @@ class Move {
  * stored as a parent in memory, and another immutable Board is returned.
  */
 class Board {
-    private final List<int[][][]> previousStates = new ArrayList<>();
+    static final List<int[][][]> previousStates = new ArrayList<>();
     private int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
@@ -273,7 +279,7 @@ class Board {
                 }
             }
         }
-        if ((first + second != 0) && (first == 0 || second == 0)) {
+        if ((first + second > 1) && (first == 0 || second == 0)) {
             return first == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
         } else {
             return null;
