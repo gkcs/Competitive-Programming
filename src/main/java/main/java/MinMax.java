@@ -3,13 +3,11 @@ package main.java;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.util.*;
 
-import static main.java.MinMax.MAX_VALUE;
-import static main.java.MinMax.MIN_VALUE;
-import static main.java.Utils.getBoardCopy;
-
+/**
+ * Iterative deepening and alpha beta are the ways to move forward.
+ */
 class ChainReaction {
     public static void main(String[] args) throws IOException {
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
@@ -35,12 +33,13 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
-    private static final int LEVEL = 3;
-    private final Map<String, Long> boards = new HashMap<>();
+    private static final int LEVEL = 1;
+    private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
 
     public MinMax() {
         Board.setNeighbours();
+        Board.clearPreviousStates();
     }
 
     public String findBestMove(final int[][][] rawBoard, final int player) {
@@ -63,10 +62,7 @@ public class MinMax {
                 } else {
                     moveValue = evaluate(movedBoard, flip(possibleMove.player), LEVEL);
                 }
-                boards.put(movedBoard.representation(), moveValue);
-                boards.put(movedBoard.flipOnX().representation(), moveValue);
-                boards.put(movedBoard.flipOnY().representation(), moveValue);
-                boards.put(movedBoard.flipOnDiag().representation(), moveValue);
+                populateMap(moveValue, movedBoard);
             }
             movedBoard.undo();
             final long relevantValue = value(moveValue, possibleMove.player);
@@ -79,6 +75,10 @@ public class MinMax {
             }
         }
         return bestMove.describe();
+    }
+
+    private void populateMap(long moveValue, final Board movedBoard) {
+        Arrays.stream(movedBoard.getOrientations()).forEach(orientation -> boards.put(orientation, moveValue));
     }
 
     private long evaluate(final Board board, final int player, final int level) {
@@ -98,10 +98,7 @@ public class MinMax {
                 } else {
                     moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1);
                 }
-                boards.put(movedBoard.representation(), moveValue);
-                boards.put(movedBoard.flipOnX().representation(), moveValue);
-                boards.put(movedBoard.flipOnY().representation(), moveValue);
-                boards.put(movedBoard.flipOnDiag().representation(), moveValue);
+                populateMap(moveValue, movedBoard);
             }
             movedBoard.undo();
             final long relevantValue = value(moveValue, possibleMove.player);
@@ -157,7 +154,6 @@ class Board {
     private int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
-    private static final StringBuilder stringBuilder = new StringBuilder(60);
 
     Board(final int[][][] board) {
         this.board = board;
@@ -195,7 +191,7 @@ class Board {
     }
 
     Board makeMove(final Move move) {
-        previousStates.add(getBoardCopy(board));
+        previousStates.add(getCopy(board));
         return play(move);
     }
 
@@ -258,7 +254,7 @@ class Board {
             }
         }
         if ((first + second != 0) && (first == 0 || second == 0)) {
-            return first == 0 ? MIN_VALUE : MAX_VALUE;
+            return first == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
         } else {
             return null;
         }
@@ -281,35 +277,28 @@ class Board {
         return Arrays.deepToString(board);
     }
 
-    Board flipOnX() {
-        final int rawBoard[][][] = new int[BOARD_SIZE][][];
-        final Board flipped = new Board(rawBoard);
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            rawBoard[i] = board[BOARD_SIZE - i - 1];
-        }
-        return flipped;
-    }
-
-    Board flipOnY() {
-        final int rawBoard[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
-        final Board flipped = new Board(rawBoard);
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                rawBoard[i][j] = board[i][BOARD_SIZE - j - 1];
+    Representation[] getOrientations() {
+        final byte[] representation = new byte[13];
+        final byte[] flipAlongX = new byte[13];
+        final byte[] flipAlongY = new byte[13];
+        final byte[] flipAlongDiag = new byte[13];
+        final byte[] flipAlongRevDiag = new byte[13];
+        int offset = 0;
+        //offset = 2 * (5 * i + j)
+        for (final int[][] row : board) {
+            for (final int[] col : row) {
+                for (final int content : col) {
+                    representation[offset >> 3] |= content << (offset & 7);
+                    offset = offset + 2;
+                }
             }
         }
-        return flipped;
-    }
-
-    Board flipOnDiag() {
-        final int rawBoard[][][] = new int[BOARD_SIZE][BOARD_SIZE][2];
-        final Board flipped = new Board(rawBoard);
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                rawBoard[i][j] = board[j][i];
-            }
-        }
-        return flipped;
+        return new Representation[]{
+                new Representation(representation),
+                new Representation(flipAlongX),
+                new Representation(flipAlongY),
+                new Representation(flipAlongDiag),
+                new Representation(flipAlongRevDiag)};
     }
 
     int heuristicValue() {
@@ -333,29 +322,17 @@ class Board {
             }
         }
         if ((first + second != 0) && (first == 0 || second == 0)) {
-            return first == 0 ? MIN_VALUE : MAX_VALUE;
+            return first == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
         } else {
             return 100 * (first - second) + 100 * (firstExplosives - secondExplosives);
         }
     }
 
-    String representation() {
+    Representation representation() {
         return compactRepresentation();
     }
 
-    private String verboseRepresentation() {
-        stringBuilder.delete(0, stringBuilder.length());
-        for (int[][] row : board) {
-            for (int[] col : row) {
-                for (int content : col) {
-                    stringBuilder.append(content);
-                }
-            }
-        }
-        return stringBuilder.toString();
-    }
-
-    private String compactRepresentation() {
+    private Representation compactRepresentation() {
         final byte[] representation = new byte[13];
         int offset = 0;
         for (final int[][] row : board) {
@@ -366,16 +343,10 @@ class Board {
                 }
             }
         }
-        try {
-            return new String(representation, "ISO-8859-1");
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        }
+        return new Representation(representation);
     }
-}
 
-class Utils {
-    static int[][][] getBoardCopy(final int board[][][]) {
+    private int[][][] getCopy(final int board[][][]) {
         final int copyBoard[][][] = new int[board.length][board.length][2];
         for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[i].length; j++) {
@@ -383,5 +354,27 @@ class Utils {
             }
         }
         return copyBoard;
+    }
+
+    static void clearPreviousStates() {
+        previousStates = new ArrayList<>();
+    }
+}
+
+class Representation {
+    private final byte[] representation;
+
+    @Override
+    public boolean equals(Object o) {
+        return Arrays.equals(representation, ((Representation) o).representation);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(representation);
+    }
+
+    Representation(final byte[] representation) {
+        this.representation = representation;
     }
 }
