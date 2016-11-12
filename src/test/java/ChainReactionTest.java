@@ -1,9 +1,8 @@
 import main.java.MinMax;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matcher;
 import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
@@ -16,7 +15,9 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {2, 1}, {1, 3}, {2, 1}},
                 {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
-        assertEquals("2 3", new MinMax().findBestMove(board, 1));
+        MinMax minMax = new MinMax();
+        assertEquals("2 3", minMax.findBestMove(board, 1, 3));
+        System.out.println(minMax.computations);
     }
 
     @Test
@@ -27,8 +28,11 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {2, 1}, {1, 1}, {2, 1}},
                 {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
-        String bestMove = new MinMax().findBestMove(board, 1);
+
+        MinMax minMax = new MinMax();
+        String bestMove = minMax.findBestMove(board, 1, 3);
 //        assertEquals("1 3", bestMove);
+        System.out.println(minMax.computations);
     }
 
     @Test
@@ -39,7 +43,10 @@ public class ChainReactionTest {
                 {{2, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {2, 2}},
                 {{0, 0}, {0, 0}, {0, 0}, {2, 2}, {0, 0}}};
-        assertThat(new MinMax().findBestMove(board, 1), anyOf(containsString("0 2"), containsString("0 3")));
+
+        MinMax minMax = new MinMax();
+        assertThat(minMax.findBestMove(board, 1, 3), anyOf(containsString("0 2"), containsString("0 3")));
+        System.out.println(minMax.computations);
     }
 
     @Test
@@ -50,6 +57,12 @@ public class ChainReactionTest {
                 {{1, 1}, {0, 0}, {1, 3}, {1, 1}, {2, 1}},
                 {{1, 2}, {1, 1}, {1, 3}, {0, 0}, {0, 0}},
                 {{1, 1}, {1, 2}, {1, 2}, {2, 1}, {2, 1}}};
-        assertThat(new MinMax().findBestMove(board, 1), anyOf(containsString("2 2"), containsString("0 3")));
+
+        MinMax minMax = new MinMax();
+        assertThat(minMax.findBestMove(board, 1, 3), anyOf(containsString("2 2"),
+                                                           containsString("0 3"),
+                                                           containsString("4 0"),
+                                                           containsString("3 0")));
+        System.out.println(minMax.computations);
     }
 }
