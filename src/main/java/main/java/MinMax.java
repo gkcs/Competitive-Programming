@@ -22,18 +22,8 @@ class ChainReaction {
         }
         final int player = Integer.parseInt(bufferedReader.readLine());
         final MinMax minMax = new MinMax();
-        String bestMove = "LOL";
-        int i = 2;
-        for (; i < 60 && minMax.computations < MinMax.COMPUTATION_LIMIT; i++) {
-            try {
-                bestMove = minMax.findBestMove(Board.getCopy(board), player, i);
-            } catch (Exception ignore) {
-            } finally {
-                minMax.clearCache();
-            }
-        }
-        System.out.println(bestMove);
-        System.out.println(minMax.computations + " " + i + " " + minMax.cacheHits);
+        System.out.println(minMax.iterativeSearchForBestMove(board, player));
+        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
     }
 }
 
@@ -46,10 +36,25 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
-    static final int COMPUTATION_LIMIT = 650000;
-    public int computations = 0, cacheHits = 0;
+    private static final int COMPUTATION_LIMIT = 50000;
+    public int computations = 0, cacheHits = 0, depth = 2;
     private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
+
+    public String iterativeSearchForBestMove(int[][][] board, int player) {
+        String bestMove = "LOL";
+        for (; depth < 60 && computations < COMPUTATION_LIMIT; depth++) {
+            try {
+                bestMove = findBestMove(Board.getCopy(board), player, depth);
+            } catch (Exception ignore) {
+                break;
+            } finally {
+                boards.clear();
+                Board.previousStates.clear();
+            }
+        }
+        return bestMove;
+    }
 
     static {
         Board.setNeighbours();
@@ -58,7 +63,7 @@ public class MinMax {
     public MinMax() {
     }
 
-    public String findBestMove(final int[][][] rawBoard, final int player, int level) {
+    private String findBestMove(final int[][][] rawBoard, final int player, final int level) {
         final Board board = new Board(rawBoard);
         long max = MIN_VALUE;
         final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
@@ -103,7 +108,7 @@ public class MinMax {
             throw new RuntimeException("Time out...");
         }
         if (level <= 0) {
-            max = value(board.heuristicValue(), player);
+            max = board.heuristicValue(player);
         } else {
             for (final Move possibleMove : board.getAllPossibleMoves(player)) {
                 final long moveValue;
@@ -138,12 +143,8 @@ public class MinMax {
         return moveValue * (player == 1 ? 1 : -1);
     }
 
-    private int flip(final int player) {
+    static int flip(final int player) {
         return ~player & 3;
-    }
-
-    void clearCache() {
-        Board.previousStates.clear();
     }
 }
 
@@ -341,31 +342,45 @@ class Board {
                 new Representation(flipAlongRevDiag)};
     }
 
-    int heuristicValue() {
-        int first = 0;
-        int second = 0;
-        int firstExplosives = 0;
-        int secondExplosives = 0;
+    int heuristicValue(final int player) {
+        final Integer terminalValue = terminalValue();
+        if (terminalValue != null) {
+            return terminalValue;
+        }
+        int orbs = 0;
+        int inThreat = 0;
+        int bonus = 0;
+        int contiguous = 0;
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j][0] == 1) {
-                    first++;
+                if (board[i][j][0] == player) {
+                    orbs += board[i][j][1];
                     if (board[i][j][1] == neighbours[i][j].length - 1) {
-                        firstExplosives++;
+                        ++contiguous;
                     }
-                } else if (board[i][j][0] == 2) {
-                    second++;
-                    if (board[i][j][1] == neighbours[i][j].length - 1) {
-                        secondExplosives++;
+                    boolean surround = false;
+                    for (int k = 0; k < neighbours[i][j].length; k++) {
+                        final int row = neighbours[i][j][k] / BOARD_SIZE;
+                        final int col = neighbours[i][j][k] % BOARD_SIZE;
+                        final int[] neighbour = board[row][col];
+                        final int criticalMass = neighbours[row][col].length - 1;
+                        if (neighbour[0] == MinMax.flip(player) && neighbour[1] == criticalMass) {
+                            inThreat -= 5 - criticalMass;
+                            surround = true;
+                        }
+                    }
+                    if (!surround) {
+                        if (neighbours[i][j].length < 4) {
+                            bonus += neighbours[i][j].length == 3 ? 2 : 3;
+                        }
+                        if (board[i][j][1] == neighbours[i][j].length - 1) {
+                            bonus += 2;
+                        }
                     }
                 }
             }
         }
-        if ((first + second != 0) && (first == 0 || second == 0)) {
-            return first == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
-        } else {
-            return 100 * (first - second) + 100 * (firstExplosives - secondExplosives);
-        }
+        return orbs + inThreat + bonus + (contiguous << 1);
     }
 
     Representation representation() {

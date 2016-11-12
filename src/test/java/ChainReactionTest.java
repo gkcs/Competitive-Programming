@@ -16,8 +16,8 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
-        assertEquals("2 3", minMax.findBestMove(board, 1, 3));
-        System.out.println(minMax.computations);
+        assertEquals("2 3", minMax.iterativeSearchForBestMove(board, 1));
+        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
     }
 
     @Test
@@ -29,8 +29,8 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
-        System.out.println(minMax.findBestMove(board, 1, 3));
-        System.out.println(minMax.computations);
+        System.out.println(minMax.iterativeSearchForBestMove(board, 1));
+        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
     }
 
     @Test
@@ -43,9 +43,9 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
 
         MinMax minMax = new MinMax();
-        String bestMove = minMax.findBestMove(board, 1, 3);
+        String bestMove = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(bestMove);
-        System.out.println(minMax.computations);
+        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
     }
 
     @Test
@@ -58,8 +58,8 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {2, 2}, {0, 0}}};
 
         MinMax minMax = new MinMax();
-        assertThat(minMax.findBestMove(board, 1, 3), anyOf(containsString("0 2"), containsString("0 3")));
-        System.out.println(minMax.computations);
+        assertThat(minMax.iterativeSearchForBestMove(board, 1), anyOf(containsString("0 2"), containsString("0 3")));
+        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
     }
 
     @Test
@@ -72,10 +72,13 @@ public class ChainReactionTest {
                 {{1, 1}, {1, 2}, {1, 2}, {2, 1}, {2, 1}}};
 
         MinMax minMax = new MinMax();
-        assertThat(minMax.findBestMove(board, 1, 3), anyOf(containsString("2 2"),
-                                                           containsString("0 3"),
-                                                           containsString("4 0"),
-                                                           containsString("3 0")));
-        System.out.println(minMax.computations);
+        assertThat(minMax.iterativeSearchForBestMove(board, 1), anyOf(containsString("2 2"),
+                                                                      containsString("0 3"),
+                                                                      containsString("4 0"),
+                                                                      containsString("4 1"),
+                                                                      containsString("4 2"),
+                                                                      containsString("3 0"),
+                                                                      containsString("3 2")));
+        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
     }
 }
