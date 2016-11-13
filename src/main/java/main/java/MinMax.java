@@ -36,14 +36,14 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
-    private static final int COMPUTATION_LIMIT = 50000;
+    private static final int COMPUTATION_LIMIT = 60000;
     public int computations = 0, cacheHits = 0, depth = 2;
     private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
 
     public String iterativeSearchForBestMove(int[][][] board, int player) {
         String bestMove = "LOL";
-        for (; depth < 60 && computations < COMPUTATION_LIMIT; depth++) {
+        while (depth < 60 && computations < COMPUTATION_LIMIT) {
             try {
                 bestMove = findBestMove(Board.getCopy(board), player, depth);
             } catch (Exception ignore) {
@@ -51,6 +51,7 @@ public class MinMax {
             } finally {
                 boards.clear();
                 Board.previousStates.clear();
+                depth++;
             }
         }
         return bestMove;
@@ -74,18 +75,8 @@ public class MinMax {
         for (final Move possibleMove : allPossibleMoves) {
             final long moveValue;
             final Board movedBoard = board.makeMove(possibleMove);
-            final Representation representation = movedBoard.representation();
-            if (boards.containsKey(representation)) {
-                moveValue = boards.get(representation);
-            } else {
-                final Integer terminalValue = movedBoard.terminalValue();
-                if (terminalValue != null) {
-                    moveValue = value(terminalValue, possibleMove.player);
-                } else {
-                    moveValue = evaluate(movedBoard, flip(possibleMove.player), level);
-                }
-                populateMap(moveValue, movedBoard);
-            }
+            moveValue = evaluate(movedBoard, flip(possibleMove.player), level);
+            populateMap(moveValue, movedBoard);
             movedBoard.undo();
             if (moveValue > max) {
                 max = moveValue;
@@ -107,26 +98,22 @@ public class MinMax {
         if (computations > COMPUTATION_LIMIT) {
             throw new RuntimeException("Time out...");
         }
-        if (level <= 0) {
+        final Integer terminalValue = board.terminalValue();
+        if (terminalValue != null) {
+            max = value(terminalValue, player);
+            max += max < 0 ? level : -level;
+        } else if (level <= 0) {
             max = board.heuristicValue(player);
+        } else if (boards.containsKey(board.representation())) {
+            max = boards.get(board.representation());
+            cacheHits++;
         } else {
             for (final Move possibleMove : board.getAllPossibleMoves(player)) {
                 final long moveValue;
                 final Board movedBoard = board.makeMove(possibleMove);
-                final Representation representation = movedBoard.representation();
-                if (boards.containsKey(representation)) {
-                    moveValue = boards.get(representation);
-                    cacheHits++;
-                } else {
-                    final Integer terminalValue = movedBoard.terminalValue();
-                    if (terminalValue != null) {
-                        moveValue = value(terminalValue, possibleMove.player);
-                    } else {
-                        computations++;
-                        moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1);
-                    }
-                    populateMap(moveValue, movedBoard);
-                }
+                computations++;
+                moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1);
+                populateMap(moveValue, movedBoard);
                 movedBoard.undo();
                 if (moveValue > max) {
                     max = moveValue;
@@ -343,10 +330,6 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        final Integer terminalValue = terminalValue();
-        if (terminalValue != null) {
-            return terminalValue;
-        }
         int orbs = 0;
         int inThreat = 0;
         int bonus = 0;
