@@ -39,6 +39,7 @@ class ChainReaction {
  * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
  */
 public class MinMax {
+    public static int TIME_OUT = 900;
     public int computations = 0, depth = 3, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -117,7 +118,7 @@ public class MinMax {
     private long evaluate(final Board board, final int player, final int level, final long a, final long b) {
         long toTake = a, toGive = b;
         long max = MIN_VALUE;
-        if (!test && System.currentTimeMillis() - startTime >= 900) {
+        if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             throw new RuntimeException("Time out...");
         }
         final Integer terminalValue;
@@ -335,21 +336,21 @@ class Board {
 
     @Override
     public String toString() {
-        final StringBuilder stringBuilder = new StringBuilder();
+        final StringBuilder stringBuilder = new StringBuilder("map.put(new Board(new int[][][]{");
         for (final int row[][] : board) {
-            stringBuilder.append('(');
+            stringBuilder.append('{');
             for (final int col[] : row) {
-                stringBuilder.append('(');
+                stringBuilder.append('{');
                 for (final int content : col) {
                     stringBuilder.append(content).append(',');
                 }
                 stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
-                stringBuilder.append(')').append(',');
+                stringBuilder.append('}').append(',');
             }
             stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
-            stringBuilder.append(')').append(',').append('\n');
+            stringBuilder.append('}').append(',').append('\n');
         }
-        stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
+        stringBuilder.delete(stringBuilder.length() - 2, stringBuilder.length()).append("}),");
         return stringBuilder.toString();
     }
 
@@ -399,4 +400,25 @@ class Board {
         }
         return copyBoard;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        final Board other = (Board) o;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                for (int k = 0; k < BOARD_SIZE; k++) {
+                    if (other.board[i][j][k] != board[i][j][k]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.deepHashCode(board);
+    }
 }
+
