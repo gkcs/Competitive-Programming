@@ -3,7 +3,9 @@ package main.java;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Iterative deepening and alpha beta are the ways to move forward.
@@ -23,8 +25,7 @@ class ChainReaction {
         final int player = Integer.parseInt(bufferedReader.readLine());
         final MinMax minMax = new MinMax();
         System.out.println(minMax.iterativeSearchForBestMove(board, player));
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.cacheHits + " " + minMax.cacheSize);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves);
     }
 }
 
@@ -39,15 +40,13 @@ class ChainReaction {
  */
 public class MinMax {
     private static final int COMPUTATION_LIMIT = 65000;
-    private static final int SIZE_THRESHOLD = 200000;
-    public int computations = 0, cacheHits = 0, depth = 3, moves = 0, cacheSize = 0;
+    public int computations = 0, depth = 3, moves = 0;
     public long eval = 0;
-    private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
     private boolean test;
 
-    public String iterativeSearchForBestMove(int[][][] board, int player) {
+    public String iterativeSearchForBestMove(final int[][][] board, final int player) {
         String bestMove = "LOL";
         while (depth < 60 && computations < COMPUTATION_LIMIT) {
             try {
@@ -58,8 +57,6 @@ public class MinMax {
                 }
                 break;
             } finally {
-                cacheSize = boards.size();
-                boards.clear();
                 Board.previousStates.clear();
                 depth++;
             }
@@ -69,7 +66,6 @@ public class MinMax {
 
     static {
         Board.setNeighbours();
-        Board.fillInCoordinates();
     }
 
     private String findBestMove(final int[][][] rawBoard,
@@ -92,7 +88,6 @@ public class MinMax {
             final long moveValue;
             final Board movedBoard = board.makeMove(possibleMove);
             moveValue = evaluate(movedBoard, flip(possibleMove.player), level, toTake, toGive);
-            populateMap(moveValue, movedBoard);
             movedBoard.undo();
             if (player == 1) {
                 if (toTake < moveValue) {
@@ -120,13 +115,6 @@ public class MinMax {
         return bestMove.describe();
     }
 
-    private void populateMap(long moveValue, final Board movedBoard) {
-        if (boards.size() < SIZE_THRESHOLD) {
-            movedBoard.getOrientations().forEach(orientation -> boards.put(orientation, moveValue));
-        }
-
-    }
-
     private long evaluate(final Board board, final int player, final int level, final long a, final long b) {
         long toTake = a, toGive = b;
         long max = MIN_VALUE;
@@ -134,10 +122,7 @@ public class MinMax {
             throw new RuntimeException("Time out...");
         }
         final Integer terminalValue;
-        if (boards.containsKey(board.representation())) {
-            max = boards.get(board.representation());
-            cacheHits++;
-        } else if ((terminalValue = board.terminalValue()) != null) {
+        if ((terminalValue = board.terminalValue()) != null) {
             max = value(terminalValue, player);
             max += max < 0 ? level : -level;
         } else if (level <= 0) {
@@ -154,7 +139,6 @@ public class MinMax {
                 final Board movedBoard = board.makeMove(possibleMove);
                 computations++;
                 moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1, toTake, toGive);
-                populateMap(moveValue, movedBoard);
                 movedBoard.undo();
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -370,65 +354,6 @@ class Board {
         return stringBuilder.toString();
     }
 
-    private static final int[][][][] coordinates = new int[5][BOARD_SIZE][BOARD_SIZE][2];
-    private static final int[][] order = new int[][]{
-            {0, 1}, {0, 2}, {0, 3},
-            {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4},
-            {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4},
-            {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4},
-            {4, 1}, {4, 2}, {4, 3}
-    };
-
-    private static final int[][] cornerOrder = new int[][]{
-            {0, 0}, {0, 4}, {4, 0}, {4, 4}
-    };
-
-    static void fillInCoordinates() {
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                coordinates[0][i][j][0] = i;
-                coordinates[0][i][j][1] = j;
-                coordinates[1][i][j][0] = BOARD_SIZE - i - 1;
-                coordinates[1][i][j][1] = j;
-                coordinates[2][i][j][0] = i;
-                coordinates[2][i][j][1] = BOARD_SIZE - j - 1;
-                coordinates[3][i][j][0] = j;
-                coordinates[3][i][j][1] = i;
-                coordinates[4][i][j][0] = BOARD_SIZE - i - 1;
-                coordinates[4][i][j][1] = BOARD_SIZE - j - 1;
-            }
-        }
-    }
-
-    List<Representation> getOrientations() {
-        final long[] middle = new long[5];
-        final byte[] corners = new byte[middle.length];
-
-        for (int k = 0; k < middle.length; k++) {
-            for (int i = 0; i < order.length; i++) {
-                final int[] coordinate = coordinates[k][order[i][0]][order[i][1]];
-                middle[k] |= (long) mapping(board[coordinate[0]][coordinate[1]]) << i * 3;
-            }
-            for (int i = 0; i < cornerOrder.length; i++) {
-                int[] cornerCoordinate = coordinates[k][cornerOrder[i][0]][cornerOrder[i][1]];
-                corners[k] |= cornerMapping(board[cornerCoordinate[0]][cornerCoordinate[1]]) << (i << 1);
-            }
-        }
-        final List<Representation> representations = new ArrayList<>();
-        for (int i = 0; i < middle.length; i++) {
-            representations.add(new Representation(middle[i], corners[i]));
-        }
-        return representations;
-    }
-
-    private int mapping(final int[] col) {
-        return col[0] == 0 ? 0 : (col[0] - 1) * 3 + col[1];
-    }
-
-    private int cornerMapping(final int[] col) {
-        return col[0] == 0 ? 0 : (col[0] - 1) + col[1];
-    }
-
     int heuristicValue(final int player) {
         int orbs = 0;
         int inThreat = 0;
@@ -466,18 +391,6 @@ class Board {
         return orbs + inThreat + bonus + (contiguous << 1);
     }
 
-    Representation representation() {
-        long middle = 0;
-        byte corners = 0;
-        for (int i = 0; i < order.length; i++) {
-            middle |= (long) mapping(board[order[i][0]][order[i][1]]) << i * 3;
-        }
-        for (int i = 0; i < cornerOrder.length; i++) {
-            corners |= cornerMapping(board[cornerOrder[i][0]][cornerOrder[i][1]]) << (i << 1);
-        }
-        return new Representation(middle, corners);
-    }
-
     static int[][][] getCopy(final int board[][][]) {
         final int copyBoard[][][] = new int[board.length][board.length][2];
         for (int i = 0; i < board.length; i++) {
@@ -486,32 +399,5 @@ class Board {
             }
         }
         return copyBoard;
-    }
-}
-
-class Representation {
-    private final long middle;
-    private final byte corners;
-
-    Representation(final long middle, final byte corners) {
-        this.middle = middle;
-        this.corners = corners;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-
-        Representation that = (Representation) o;
-
-        return middle == that.middle && corners == that.corners;
-
-    }
-
-    @Override
-    public int hashCode() {
-        int result = (int) (middle ^ (middle >>> 32));
-        result = 31 * result + (int) corners;
-        return result;
     }
 }

@@ -19,7 +19,6 @@ public class Simulator {
         System.out.println("MOVE: " + (count++) + " " + player);
         System.out.println(Arrays.toString(split));
         System.out.println(board);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.cacheHits + " " + minMax.cacheSize);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves);
     }
 }
