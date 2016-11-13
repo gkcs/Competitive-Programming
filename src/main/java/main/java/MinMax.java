@@ -23,7 +23,7 @@ class ChainReaction {
         final int player = Integer.parseInt(bufferedReader.readLine());
         final MinMax minMax = new MinMax();
         System.out.println(minMax.iterativeSearchForBestMove(board, player));
-        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 }
 
@@ -36,8 +36,9 @@ class ChainReaction {
  * scenarios.
  */
 public class MinMax {
-    private static final int COMPUTATION_LIMIT = 60000;
-    public int computations = 0, cacheHits = 0, depth = 2;
+    private static final int COMPUTATION_LIMIT = 70000;
+    public int computations = 0, cacheHits = 0, depth = 2, moves = 0;
+    public long eval = 0;
     private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
 
@@ -46,7 +47,10 @@ public class MinMax {
         while (depth < 60 && computations < COMPUTATION_LIMIT) {
             try {
                 bestMove = findBestMove(Board.getCopy(board), player, depth);
-            } catch (Exception ignore) {
+            } catch (Exception e) {
+                if (!e.getMessage().equals("Time out...")) {
+                    bestMove = e.getMessage() + " " + e.getClass().getSimpleName();
+                }
                 break;
             } finally {
                 boards.clear();
@@ -59,9 +63,7 @@ public class MinMax {
 
     static {
         Board.setNeighbours();
-    }
-
-    public MinMax() {
+        Board.fillInCoordinates();
     }
 
     private String findBestMove(final int[][][] rawBoard, final int player, final int level) {
@@ -86,11 +88,13 @@ public class MinMax {
                 }
             }
         }
+        eval = max;
+        moves = allPossibleMoves.length;
         return bestMove.describe();
     }
 
     private void populateMap(long moveValue, final Board movedBoard) {
-        Arrays.stream(movedBoard.getOrientations()).forEach(orientation -> boards.put(orientation, moveValue));
+        movedBoard.getOrientations().forEach(orientation -> boards.put(orientation, moveValue));
     }
 
     private long evaluate(final Board board, final int player, final int level) {
@@ -98,15 +102,15 @@ public class MinMax {
         if (computations > COMPUTATION_LIMIT) {
             throw new RuntimeException("Time out...");
         }
-        final Integer terminalValue = board.terminalValue();
-        if (terminalValue != null) {
-            max = value(terminalValue, player);
-            max += max < 0 ? level : -level;
-        } else if (level <= 0) {
-            max = board.heuristicValue(player);
-        } else if (boards.containsKey(board.representation())) {
+        final Integer terminalValue;
+        if (boards.containsKey(board.representation())) {
             max = boards.get(board.representation());
             cacheHits++;
+        } else if (level <= 0) {
+            max = board.heuristicValue(player);
+        } else if ((terminalValue = board.terminalValue()) != null) {
+            max = value(terminalValue, player);
+            max += max < 0 ? level : -level;
         } else {
             for (final Move possibleMove : board.getAllPossibleMoves(player)) {
                 final long moveValue;
@@ -291,42 +295,63 @@ class Board {
         return Arrays.deepToString(board);
     }
 
-    Representation[] getOrientations() {
-        final byte[] representation = new byte[13];
-        final byte[] flipAlongX = new byte[13];
-        final byte[] flipAlongY = new byte[13];
-        final byte[] flipAlongDiag = new byte[13];
-        final byte[] flipAlongRevDiag = new byte[13];
-        for (int i = 0; i < board.length; i++) {
-            for (int j = 0; j < board[i].length; j++) {
-                int offset = (BOARD_SIZE * i + j) << 2;
-                int offsetX = (BOARD_SIZE * (BOARD_SIZE - i - 1) + j) << 2;
-                int offsetY = (BOARD_SIZE * i + (BOARD_SIZE - j - 1)) << 2;
-                int offsetDiag = (BOARD_SIZE * j + i) << 2;
-                int offsetRevDiag = (BOARD_SIZE * (BOARD_SIZE - i - 1) + (BOARD_SIZE - j - 1)) << 2;
-                representation[offset >> 3] |= board[i][j][0] << (offset & 7);
-                flipAlongX[offsetX >> 3] |= board[i][j][0] << (offsetX & 7);
-                flipAlongY[offsetY >> 3] |= board[i][j][0] << (offsetY & 7);
-                flipAlongDiag[offsetDiag >> 3] |= board[i][j][0] << (offsetDiag & 7);
-                flipAlongRevDiag[offsetRevDiag >> 3] |= board[i][j][0] << (offsetRevDiag & 7);
-                offset += 2;
-                offsetX += 2;
-                offsetY += 2;
-                offsetDiag += 2;
-                offsetRevDiag += 2;
-                representation[offset >> 3] |= board[i][j][1] << (offset & 7);
-                flipAlongX[offsetX >> 3] |= board[i][j][1] << (offsetX & 7);
-                flipAlongY[offsetY >> 3] |= board[i][j][1] << (offsetY & 7);
-                flipAlongDiag[offsetDiag >> 3] |= board[i][j][1] << (offsetDiag & 7);
-                flipAlongRevDiag[offsetRevDiag >> 3] |= board[i][j][1] << (offsetRevDiag & 7);
+    private static final int[][][][] coordinates = new int[5][BOARD_SIZE][BOARD_SIZE][2];
+    private static final int[][] order = new int[][]{
+            {0, 1}, {0, 2}, {0, 3},
+            {1, 0}, {1, 1}, {1, 2}, {1, 3}, {1, 4},
+            {2, 0}, {2, 1}, {2, 2}, {2, 3}, {2, 4},
+            {3, 0}, {3, 1}, {3, 2}, {3, 3}, {3, 4},
+            {4, 1}, {4, 2}, {4, 3}
+    };
+
+    private static final int[][] cornerOrder = new int[][]{
+            {0, 0}, {0, 4}, {4, 0}, {4, 4}
+    };
+
+    static void fillInCoordinates() {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                coordinates[0][i][j][0] = i;
+                coordinates[0][i][j][1] = j;
+                coordinates[1][i][j][0] = BOARD_SIZE - i - 1;
+                coordinates[1][i][j][1] = j;
+                coordinates[2][i][j][0] = i;
+                coordinates[2][i][j][1] = BOARD_SIZE - j - 1;
+                coordinates[3][i][j][0] = j;
+                coordinates[3][i][j][1] = i;
+                coordinates[4][i][j][0] = BOARD_SIZE - i - 1;
+                coordinates[4][i][j][1] = BOARD_SIZE - j - 1;
             }
         }
-        return new Representation[]{
-                new Representation(representation),
-                new Representation(flipAlongX),
-                new Representation(flipAlongY),
-                new Representation(flipAlongDiag),
-                new Representation(flipAlongRevDiag)};
+    }
+
+    List<Representation> getOrientations() {
+        final long[] middle = new long[5];
+        final byte[] corners = new byte[middle.length];
+
+        for (int k = 0; k < middle.length; k++) {
+            for (int i = 0; i < order.length; i++) {
+                final int[] coordinate = coordinates[k][order[i][0]][order[i][1]];
+                middle[k] |= (long) mapping(board[coordinate[0]][coordinate[1]]) << i * 3;
+            }
+            for (int i = 0; i < cornerOrder.length; i++) {
+                int[] cornerCoordinate = coordinates[k][cornerOrder[i][0]][cornerOrder[i][1]];
+                corners[k] |= cornerMapping(board[cornerCoordinate[0]][cornerCoordinate[1]]) << (i << 1);
+            }
+        }
+        final List<Representation> representations = new ArrayList<>();
+        for (int i = 0; i < middle.length; i++) {
+            representations.add(new Representation(middle[i], corners[i]));
+        }
+        return representations;
+    }
+
+    private int mapping(final int[] col) {
+        return col[0] == 0 ? 0 : (col[0] - 1) * 3 + col[1];
+    }
+
+    private int cornerMapping(final int[] col) {
+        return col[0] == 0 ? 0 : (col[0] - 1) + col[1];
     }
 
     int heuristicValue(final int player) {
@@ -367,21 +392,15 @@ class Board {
     }
 
     Representation representation() {
-        return compactRepresentation();
-    }
-
-    private Representation compactRepresentation() {
-        final byte[] representation = new byte[13];
-        int offset = 0;
-        for (final int[][] row : board) {
-            for (final int[] col : row) {
-                for (final int content : col) {
-                    representation[offset >> 3] |= content << (offset & 7);
-                    offset = offset + 2;
-                }
-            }
+        long middle = 0;
+        byte corners = 0;
+        for (int i = 0; i < order.length; i++) {
+            middle |= (long) mapping(board[order[i][0]][order[i][1]]) << i * 3;
         }
-        return new Representation(representation);
+        for (int i = 0; i < cornerOrder.length; i++) {
+            corners |= cornerMapping(board[cornerOrder[i][0]][cornerOrder[i][1]]) << (i << 1);
+        }
+        return new Representation(middle, corners);
     }
 
     static int[][][] getCopy(final int board[][][]) {
@@ -396,19 +415,28 @@ class Board {
 }
 
 class Representation {
-    private final byte[] representation;
+    private final long middle;
+    private final byte corners;
+
+    Representation(final long middle, final byte corners) {
+        this.middle = middle;
+        this.corners = corners;
+    }
 
     @Override
     public boolean equals(Object o) {
-        return Arrays.equals(representation, ((Representation) o).representation);
+        if (this == o) return true;
+
+        Representation that = (Representation) o;
+
+        return middle == that.middle && corners == that.corners;
+
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(representation);
-    }
-
-    Representation(final byte[] representation) {
-        this.representation = representation;
+        int result = (int) (middle ^ (middle >>> 32));
+        result = 31 * result + (int) corners;
+        return result;
     }
 }

@@ -17,7 +17,7 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
         assertEquals("2 3", minMax.iterativeSearchForBestMove(board, 1));
-        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 
     @Test
@@ -30,7 +30,7 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
         System.out.println(minMax.iterativeSearchForBestMove(board, 1));
-        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 
     @Test
@@ -45,7 +45,7 @@ public class ChainReactionTest {
         MinMax minMax = new MinMax();
         String bestMove = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(bestMove);
-        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 
     @Test
@@ -59,7 +59,7 @@ public class ChainReactionTest {
 
         MinMax minMax = new MinMax();
         assertThat(minMax.iterativeSearchForBestMove(board, 1), anyOf(containsString("0 2"), containsString("0 3")));
-        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 
     @Test
@@ -79,6 +79,6 @@ public class ChainReactionTest {
                                                                       containsString("4 2"),
                                                                       containsString("3 0"),
                                                                       containsString("3 2")));
-        System.out.println(minMax.computations + " " + minMax.cacheHits + " " + minMax.depth);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 }
