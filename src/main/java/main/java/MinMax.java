@@ -39,7 +39,6 @@ class ChainReaction {
  * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
  */
 public class MinMax {
-    private static final int COMPUTATION_LIMIT = 65000;
     public int computations = 0, depth = 3, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -48,10 +47,10 @@ public class MinMax {
 
     public String iterativeSearchForBestMove(final int[][][] board, final int player) {
         String bestMove = "LOL";
-        while (depth < 60 && computations < COMPUTATION_LIMIT) {
+        while (depth < 60) {
             try {
                 bestMove = findBestMove(Board.getCopy(board), player, depth);
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 if (!e.getMessage().equals("Time out...")) {
                     bestMove = e.getMessage() + " " + e.getClass().getSimpleName();
                 }
