@@ -23,7 +23,8 @@ class ChainReaction {
         final int player = Integer.parseInt(bufferedReader.readLine());
         final MinMax minMax = new MinMax();
         System.out.println(minMax.iterativeSearchForBestMove(board, player));
-        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
+        System.out.println(minMax.eval + " " + minMax.depth + " "
+                                   + minMax.moves + " " + minMax.cacheHits + " " + minMax.cacheSize);
     }
 }
 
@@ -34,13 +35,17 @@ class ChainReaction {
  * <p>
  * A better approach will be iterative deepening. Local search around an 'interesting' area is feasible in these
  * scenarios.
+ * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
  */
 public class MinMax {
-    private static final int COMPUTATION_LIMIT = 70000;
-    public int computations = 0, cacheHits = 0, depth = 2, moves = 0;
+    private static final int COMPUTATION_LIMIT = 65000;
+    private static final int SIZE_THRESHOLD = 200000;
+    public int computations = 0, cacheHits = 0, depth = 3, moves = 0, cacheSize = 0;
     public long eval = 0;
     private final Map<Representation, Long> boards = new HashMap<>();
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
+    private final long startTime = System.currentTimeMillis();
+    private boolean test;
 
     public String iterativeSearchForBestMove(int[][][] board, int player) {
         String bestMove = "LOL";
@@ -53,6 +58,7 @@ public class MinMax {
                 }
                 break;
             } finally {
+                cacheSize = boards.size();
                 boards.clear();
                 Board.previousStates.clear();
                 depth++;
@@ -66,26 +72,47 @@ public class MinMax {
         Board.fillInCoordinates();
     }
 
-    private String findBestMove(final int[][][] rawBoard, final int player, final int level) {
+    private String findBestMove(final int[][][] rawBoard,
+                                final int player,
+                                final int level) {
         final Board board = new Board(rawBoard);
+        long toTake = MIN_VALUE, toGive = MAX_VALUE;
         long max = MIN_VALUE;
         final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
         if (allPossibleMoves.length == 0) {
             throw new RuntimeException("No possible moves");
         }
+        for (final Move move : allPossibleMoves) {
+            move.strength = board.makeMove(move).heuristicValue(player);
+            board.undo();
+        }
+        Arrays.sort(allPossibleMoves);
         Move bestMove = allPossibleMoves[0];
         for (final Move possibleMove : allPossibleMoves) {
             final long moveValue;
             final Board movedBoard = board.makeMove(possibleMove);
-            moveValue = evaluate(movedBoard, flip(possibleMove.player), level);
+            moveValue = evaluate(movedBoard, flip(possibleMove.player), level, toTake, toGive);
             populateMap(moveValue, movedBoard);
             movedBoard.undo();
+            if (player == 1) {
+                if (toTake < moveValue) {
+                    toTake = moveValue;
+                }
+            } else {
+                if (toGive > -moveValue) {
+                    toGive = -moveValue;
+                }
+            }
             if (moveValue > max) {
                 max = moveValue;
                 bestMove = possibleMove;
-                if (max == MAX_VALUE) {
+                if (Math.abs(max - MAX_VALUE) <= 100) {
                     break;
                 }
+            }
+            if (toTake >= toGive) {
+                max = moveValue;
+                break;
             }
         }
         eval = max;
@@ -94,36 +121,59 @@ public class MinMax {
     }
 
     private void populateMap(long moveValue, final Board movedBoard) {
-        movedBoard.getOrientations().forEach(orientation -> boards.put(orientation, moveValue));
+        if (boards.size() < SIZE_THRESHOLD) {
+            movedBoard.getOrientations().forEach(orientation -> boards.put(orientation, moveValue));
+        }
+
     }
 
-    private long evaluate(final Board board, final int player, final int level) {
+    private long evaluate(final Board board, final int player, final int level, final long a, final long b) {
+        long toTake = a, toGive = b;
         long max = MIN_VALUE;
-        if (computations > COMPUTATION_LIMIT) {
+        if (!test && System.currentTimeMillis() - startTime >= 900) {
             throw new RuntimeException("Time out...");
         }
         final Integer terminalValue;
         if (boards.containsKey(board.representation())) {
             max = boards.get(board.representation());
             cacheHits++;
-        } else if (level <= 0) {
-            max = board.heuristicValue(player);
         } else if ((terminalValue = board.terminalValue()) != null) {
             max = value(terminalValue, player);
             max += max < 0 ? level : -level;
+        } else if (level <= 0) {
+            max = board.heuristicValue(player);
         } else {
-            for (final Move possibleMove : board.getAllPossibleMoves(player)) {
+            final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
+            for (final Move move : allPossibleMoves) {
+                move.strength = board.makeMove(move).heuristicValue(player);
+                board.undo();
+            }
+            Arrays.sort(allPossibleMoves);
+            for (final Move possibleMove : allPossibleMoves) {
                 final long moveValue;
                 final Board movedBoard = board.makeMove(possibleMove);
                 computations++;
-                moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1);
+                moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1, toTake, toGive);
                 populateMap(moveValue, movedBoard);
                 movedBoard.undo();
+                if (player == 1) {
+                    if (toTake < moveValue) {
+                        toTake = moveValue;
+                    }
+                } else {
+                    if (toGive > -moveValue) {
+                        toGive = -moveValue;
+                    }
+                }
                 if (moveValue > max) {
                     max = moveValue;
-                    if (max == MAX_VALUE) {
+                    if (Math.abs(max - MAX_VALUE) <= 100) {
                         break;
                     }
+                }
+                if (toTake >= toGive) {
+                    max = moveValue;
+                    break;
                 }
             }
         }
@@ -137,12 +187,17 @@ public class MinMax {
     static int flip(final int player) {
         return ~player & 3;
     }
+
+    public void setTest(boolean test) {
+        this.test = test;
+    }
 }
 
-class Move {
+class Move implements Comparable<Move> {
     final int x, y, player;
+    int strength;
 
-    Move(int x, int y, int player) {
+    Move(final int x, final int y, final int player) {
         this.x = x;
         this.y = y;
         this.player = player;
@@ -160,6 +215,11 @@ class Move {
                 ", player=" + player +
                 '}';
     }
+
+    @Override
+    public int compareTo(Move other) {
+        return other.strength - strength;
+    }
 }
 
 /**
@@ -169,7 +229,7 @@ class Move {
  */
 class Board {
     static final List<int[][][]> previousStates = new ArrayList<>();
-    private int[][][] board;
+    int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
 
@@ -213,7 +273,7 @@ class Board {
         return play(move);
     }
 
-    private Board play(final Move move) {
+    Board play(final Move move) {
         board[move.x][move.y][0] = move.player;
         board[move.x][move.y][1]++;
         if (terminalValue() != null) {
@@ -292,7 +352,22 @@ class Board {
 
     @Override
     public String toString() {
-        return Arrays.deepToString(board);
+        final StringBuilder stringBuilder = new StringBuilder();
+        for (final int row[][] : board) {
+            stringBuilder.append('(');
+            for (final int col[] : row) {
+                stringBuilder.append('(');
+                for (final int content : col) {
+                    stringBuilder.append(content).append(',');
+                }
+                stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
+                stringBuilder.append(')').append(',');
+            }
+            stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
+            stringBuilder.append(')').append(',').append('\n');
+        }
+        stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
+        return stringBuilder.toString();
     }
 
     private static final int[][][][] coordinates = new int[5][BOARD_SIZE][BOARD_SIZE][2];

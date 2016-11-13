@@ -4,6 +4,7 @@ import org.junit.Test;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class ChainReactionTest {
@@ -16,6 +17,7 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
+        //minMax.setTest(true);
         assertEquals("2 3", minMax.iterativeSearchForBestMove(board, 1));
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
@@ -29,6 +31,7 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
+//        minMax.setTest(true);
         System.out.println(minMax.iterativeSearchForBestMove(board, 1));
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
@@ -43,13 +46,14 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
 
         MinMax minMax = new MinMax();
+//        minMax.setTest(true);
         String bestMove = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(bestMove);
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
     }
 
     @Test
-    public void captureOn1_3() {
+    public void captureOn0_3() {
         final int[][][] board = {
                 {{2, 1}, {2, 2}, {1, 2}, {1, 2}, {2, 1}},
                 {{2, 2}, {2, 2}, {1, 1}, {0, 0}, {0, 0}},
@@ -58,8 +62,10 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {2, 2}, {0, 0}}};
 
         MinMax minMax = new MinMax();
-        assertThat(minMax.iterativeSearchForBestMove(board, 1), anyOf(containsString("0 2"), containsString("0 3")));
+//        minMax.setTest(true);
+        String actual = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
+        assertThat(actual, anyOf(containsString("0 2"), containsString("0 3")));
     }
 
     @Test
@@ -72,6 +78,7 @@ public class ChainReactionTest {
                 {{1, 1}, {1, 2}, {1, 2}, {2, 1}, {2, 1}}};
 
         MinMax minMax = new MinMax();
+//        minMax.setTest(true);
         assertThat(minMax.iterativeSearchForBestMove(board, 1), anyOf(containsString("2 2"),
                                                                       containsString("0 3"),
                                                                       containsString("4 0"),
@@ -80,5 +87,22 @@ public class ChainReactionTest {
                                                                       containsString("3 0"),
                                                                       containsString("3 2")));
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
+    }
+
+    @Test
+    public void dontHariKari() {
+        final int[][][] board = {
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+                {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {1, 1}}};
+        final MinMax minMax = new MinMax();
+        minMax.setTest(true);
+        final String move = minMax.iterativeSearchForBestMove(board, 2);
+        System.out.println(move);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.cacheHits);
+        assertFalse("3 4".equals(move));
+        assertFalse("4 3".equals(move));
     }
 }
