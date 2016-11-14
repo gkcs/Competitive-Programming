@@ -222,11 +222,7 @@ class Move implements Comparable<Move> {
  */
 class Board {
     static final List<int[][][]> previousStates = new ArrayList<>();
-    public static Function<int[], Integer> heuristicEval
-            = (vals) -> (int) ((0.7084669333471585 * vals[0]
-            + 0.030295549468825067 * vals[1]
-            + 0.571449228843229 * vals[2]
-            + 0.20487033976225832 * vals[3]) * 2.0);
+    static Function<int[], Integer> heuristicEval;
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
@@ -402,10 +398,7 @@ class Board {
                 }
             }
         }
-        return (int) ((orbs * 0.7084669333471585
-                + inThreat * 0.030295549468825067
-                + bonus * 0.571449228843229
-                + contiguous * 2 * 0.20487033976225832) * 2.0);
+        return (orbs + inThreat + bonus + contiguous);
     }
 
     static int[][][] getCopy(final int board[][][]) {
@@ -599,6 +592,21 @@ class Cache {
                 {{2, 1}, {2, 3}, {2, 2}, {2, 2}, {2, 2}},
                 {{2, 2}, {2, 2}, {2, 2}, {1, 2}, {1, 1}},
                 {{2, 1}, {0, 0}, {2, 1}, {1, 2}, {0, 0}}}), false);
+        map.put(new Board(new int[][][]{{{0, 0}, {1, 2}, {1, 2}, {1, 1}, {1, 1}},
+                {{2, 2}, {2, 1}, {2, 3}, {1, 2}, {1, 2}},
+                {{2, 2}, {2, 3}, {0, 0}, {2, 2}, {1, 2}},
+                {{2, 2}, {2, 3}, {2, 2}, {1, 1}, {1, 1}},
+                {{2, 1}, {2, 1}, {2, 2}, {1, 1}, {2, 1}}}), false);
+        map.put(new Board(new int[][][]{{{1, 1}, {0, 0}, {1, 2}, {0, 0}, {2, 1}},
+                {{1, 1}, {1, 3}, {2, 3}, {2, 2}, {2, 1}},
+                {{1, 1}, {1, 3}, {2, 2}, {2, 2}, {2, 1}},
+                {{1, 2}, {2, 2}, {0, 0}, {2, 2}, {2, 1}},
+                {{1, 1}, {0, 0}, {2, 1}, {0, 0}, {1, 1}}}), false);
+        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}},
+                {{1, 1}, {1, 1}, {1, 3}, {0, 0}, {1, 2}},
+                {{2, 2}, {2, 3}, {1, 2}, {0, 0}, {0, 0}},
+                {{2, 1}, {2, 1}, {2, 2}, {0, 0}, {2, 2}},
+                {{2, 1}, {2, 2}, {2, 2}, {2, 2}, {2, 1}}}), false);
     }
 
     public Boolean get(Board board) {
