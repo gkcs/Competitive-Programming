@@ -41,7 +41,8 @@ public class ChainReactionTest {
 
     @Test
     public void analyzeDeepAgain() {
-        final int[][][] board = {{{1, 1}, {1, 2}, {1, 1}, {2, 2}, {0, 0}},
+        final int[][][] board = {
+                {{1, 1}, {1, 2}, {1, 1}, {2, 2}, {0, 0}},
                 {{1, 2}, {1, 1}, {1, 1}, {1, 2}, {2, 2}},
                 {{1, 1}, {1, 3}, {1, 1}, {2, 1}, {1, 2}},
                 {{1, 2}, {0, 0}, {2, 3}, {0, 0}, {0, 0}},
@@ -51,8 +52,8 @@ public class ChainReactionTest {
         //minMax.setTest(true);
         String actual = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(actual);
-//        assertEquals("3 1", actual);
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
+        assertEquals("3 0", actual);
         MinMax.TIME_OUT = 910;
     }
 

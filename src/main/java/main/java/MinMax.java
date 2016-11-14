@@ -26,7 +26,7 @@ class ChainReaction {
         final int player = Integer.parseInt(bufferedReader.readLine());
         final MinMax minMax = new MinMax();
         System.out.println(minMax.iterativeSearchForBestMove(board, player));
-        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves);
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
     }
 }
 
@@ -416,9 +416,6 @@ class Board {
         int inThreat = 0;
         int bonus = 0;
         int contiguous = 0;
-        if (player >= COLORS) {
-            System.out.println("uh oh");
-        }
         for (int m = 0; m < choices[player]; m++) {
             final int i = moves[player][m].x;
             final int j = moves[player][m].y;
