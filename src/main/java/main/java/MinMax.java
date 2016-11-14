@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Iterative deepening and alpha beta are the ways to move forward.
@@ -213,6 +214,11 @@ class Move implements Comparable<Move> {
  */
 class Board {
     static final List<int[][][]> previousStates = new ArrayList<>();
+    public static Function<int[], Integer> heuristicEval
+            = (vals) -> (int) ((0.7084669333471585 * vals[0]
+            + 0.030295549468825067 * vals[1]
+            + 0.571449228843229 * vals[2]
+            + 0.20487033976225832 * vals[3]) * 2.0);
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
@@ -388,7 +394,10 @@ class Board {
                 }
             }
         }
-        return orbs + inThreat + bonus + (contiguous << 1);
+        return (int) ((orbs * 0.7084669333471585
+                + inThreat * 0.030295549468825067
+                + bonus * 0.571449228843229
+                + contiguous * 2 * 0.20487033976225832) * 2.0);
     }
 
     static int[][][] getCopy(final int board[][][]) {
