@@ -48,6 +48,7 @@ public class MinMax {
     private boolean test;
 
     static {
+        Board.setMoves();
         Board.setNeighbours();
     }
 
@@ -75,11 +76,11 @@ public class MinMax {
         long toTake = MIN_VALUE, toGive = MAX_VALUE;
         long max = MIN_VALUE;
         final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
-        if (allPossibleMoves.length == 0) {
+        if (board.getChoiceCount(player) == 0) {
             throw new RuntimeException("No possible moves");
         }
-        final BoardMove[] possibleConfigs = new BoardMove[allPossibleMoves.length];
-        for (int i = 0; i < allPossibleMoves.length; i++) {
+        final BoardMove[] possibleConfigs = new BoardMove[board.getChoiceCount(player)];
+        for (int i = 0; i < possibleConfigs.length; i++) {
             possibleConfigs[i] = new BoardMove(allPossibleMoves[i], board, player);
         }
         Arrays.sort(possibleConfigs);
@@ -109,23 +110,24 @@ public class MinMax {
             }
         }
         eval = max;
-        moves = allPossibleMoves.length;
+        moves = board.getChoiceCount(player);
         return bestMove.describe();
     }
 
     private static class BoardMove implements Comparable<BoardMove> {
         final Move move;
         final Board board;
+        final int strength;
 
         private BoardMove(final Move move, final Board board, final int player) {
             this.board = board.makeMove(move);
-            move.strength = this.board.heuristicValue(player);
+            this.strength = this.board.heuristicValue(player);
             this.move = move;
         }
 
         @Override
         public int compareTo(BoardMove o) {
-            return o.move.strength - move.strength;
+            return o.strength - strength;
         }
 
         @Override
@@ -151,8 +153,8 @@ public class MinMax {
             max = board.heuristicValue(player);
         } else {
             final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
-            final BoardMove[] possibleConfigs = new BoardMove[allPossibleMoves.length];
-            for (int i = 0; i < allPossibleMoves.length; i++) {
+            final BoardMove[] possibleConfigs = new BoardMove[board.getChoiceCount(player)];
+            for (int i = 0; i < possibleConfigs.length; i++) {
                 possibleConfigs[i] = new BoardMove(allPossibleMoves[i], board, player);
             }
             Arrays.sort(possibleConfigs);
@@ -199,7 +201,6 @@ public class MinMax {
 
 class Move {
     final int x, y, player;
-    int strength;
 
     Move(final int x, final int y, final int player) {
         this.x = x;
@@ -231,35 +232,40 @@ class Board {
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
-    private int[] score = new int[3];
-    private final Move[] moves = new Move[BOARD_SIZE * BOARD_SIZE];
+    public static final int COLORS = 3;
+    private int[] score = new int[COLORS];
+    private final Move[][] moves = new Move[COLORS][BOARD_SIZE * BOARD_SIZE];
+    private final int choices[] = new int[COLORS];
+    static final Move ALL_MOVES[][][] = new Move[COLORS][BOARD_SIZE][BOARD_SIZE];
 
     Board(final int[][][] board) {
         this.board = getCopy(board);
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
                 score[board[i][j][0]]++;
+                moves[board[i][j][0]][choices[board[i][j][0]]++] = ALL_MOVES[board[i][j][0]][i][j];
             }
         }
     }
 
-    private Board(final int[][][] board, final int score[]) {
+    private Board(final int[][][] board, final int score[], final Move[][] moves, final int choices[]) {
         this.board = getCopy(board);
         System.arraycopy(score, 0, this.score, 0, score.length);
+        System.arraycopy(choices, 0, this.choices, 0, choices.length);
+        for (int i = 0; i < COLORS; i++) {
+            System.arraycopy(moves[i], 0, this.moves[i], 0, choices[i]);
+        }
     }
 
     Move[] getAllPossibleMoves(final int player) {
-        int length = 0;
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                if (MinMax.flip(player) != board[i][j][0]) {
-                    moves[length++] = new Move(i, j, player);
-                }
-            }
-        }
-        final Move[] dest = new Move[length];
-        System.arraycopy(moves, 0, dest, 0, dest.length);
-        return dest;
+        final Move[] possibilities = new Move[choices[0] + choices[player]];
+        System.arraycopy(moves[player], 0, possibilities, 0, choices[player]);
+        System.arraycopy(moves[0], 0, possibilities, choices[player], choices[0]);
+        return possibilities;
+    }
+
+    int getChoiceCount(final int player) {
+        return choices[player];
     }
 
     static void setNeighbours() {
@@ -294,9 +300,10 @@ class Board {
     }
 
     Board makeMove(final Move move) {
-        return new Board(board, score).play(move);
+        return new Board(board, score, moves, choices).play(move);
     }
 
+    //// TODO: 14/11/16 Fix the board move list
     Board play(final Move move) {
         if (board[move.x][move.y][0] == MinMax.flip(move.player)) {
             score[MinMax.flip(move.player)]--;
@@ -322,7 +329,7 @@ class Board {
 
     private void explode(final int x, final int y, final int player) {
         for (final int neighbour : neighbours[x][y]) {
-            play(new Move(neighbour / BOARD_SIZE, neighbour % BOARD_SIZE, player));
+            play(ALL_MOVES[player][neighbour / BOARD_SIZE][neighbour % BOARD_SIZE]);
         }
     }
 
@@ -359,32 +366,30 @@ class Board {
         int inThreat = 0;
         int bonus = 0;
         int contiguous = 0;
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j][0] == player) {
-                    orbs += board[i][j][1];
-                    if (board[i][j][1] == neighbours[i][j].length - 1) {
-                        ++contiguous;
-                    }
-                    boolean surround = false;
-                    for (int k = 0; k < neighbours[i][j].length; k++) {
-                        final int row = neighbours[i][j][k] / BOARD_SIZE;
-                        final int col = neighbours[i][j][k] % BOARD_SIZE;
-                        final int[] neighbour = board[row][col];
-                        final int criticalMass = neighbours[row][col].length - 1;
-                        if (neighbour[0] == MinMax.flip(player) && neighbour[1] == criticalMass) {
-                            inThreat -= 5 - criticalMass;
-                            surround = true;
-                        }
-                    }
-                    if (!surround) {
-                        if (neighbours[i][j].length < 4) {
-                            bonus += neighbours[i][j].length == 3 ? 2 : 3;
-                        }
-                        if (board[i][j][1] == neighbours[i][j].length - 1) {
-                            bonus += 2;
-                        }
-                    }
+        for (int m = 0; m < choices[player]; m++) {
+            final int i = moves[player][m].x;
+            final int j = moves[player][m].y;
+            orbs += board[i][j][1];
+            if (board[i][j][1] == neighbours[i][j].length - 1) {
+                ++contiguous;
+            }
+            boolean surround = false;
+            for (int k = 0; k < neighbours[i][j].length; k++) {
+                final int row = neighbours[i][j][k] / BOARD_SIZE;
+                final int col = neighbours[i][j][k] % BOARD_SIZE;
+                final int[] neighbour = board[row][col];
+                final int criticalMass = neighbours[row][col].length - 1;
+                if (neighbour[0] == MinMax.flip(player) && neighbour[1] == criticalMass) {
+                    inThreat -= 5 - criticalMass;
+                    surround = true;
+                }
+            }
+            if (!surround) {
+                if (neighbours[i][j].length < 4) {
+                    bonus += neighbours[i][j].length == 3 ? 2 : 3;
+                }
+                if (board[i][j][1] == neighbours[i][j].length - 1) {
+                    bonus += 2;
                 }
             }
         }
@@ -392,10 +397,12 @@ class Board {
         return heuristicEval.apply(new int[]{orbs, inThreat, bonus, contiguous});
     }
 
-    static int[][][] getCopy(final int board[][][]) {
+    int[][][] getCopy(final int board[][][]) {
         final int copyBoard[][][] = new int[board.length][board.length][2];
-        for (int i = 0; i < board.length; i++) {
-            for (int j = 0; j < board[i].length; j++) {
+        for (int k = 1; k < COLORS; k++) {
+            for (int l = 0; l < choices[k]; l++) {
+                final int i = moves[k][l].x;
+                final int j = moves[k][l].y;
                 System.arraycopy(board[i][j], 0, copyBoard[i][j], 0, board[i][j].length);
             }
         }
@@ -420,5 +427,15 @@ class Board {
     @Override
     public int hashCode() {
         return Arrays.deepHashCode(board);
+    }
+
+    static void setMoves() {
+        for (int player = 0; player < COLORS; player++) {
+            for (int i = 0; i < BOARD_SIZE; i++) {
+                for (int j = 0; j < BOARD_SIZE; j++) {
+                    ALL_MOVES[player][i][j] = new Move(i, j, player);
+                }
+            }
+        }
     }
 }

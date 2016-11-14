@@ -109,7 +109,7 @@ public class Simulator {
 
     private static void playMove(final Board board, final MinMax minMax, final int player, int count) {
         final String[] split = minMax.iterativeSearchForBestMove(board.board, player).split(" ");
-        board.play(new Move(Integer.parseInt(split[0]), Integer.parseInt(split[1]), player));
+        board.play(Board.ALL_MOVES[player][Integer.parseInt(split[0])][Integer.parseInt(split[1])]);
         //System.out.println("MOVE: " + count + " " + player);
         System.out.println(Arrays.toString(split) + " " + count);
 //        if (Math.abs(minMax.eval - MinMax.MAX_VALUE) < 100) {
