@@ -6,8 +6,6 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
@@ -42,13 +40,12 @@ class ChainReaction {
  * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
  */
 public class MinMax {
-    public static int TIME_OUT = 900;
+    public static int TIME_OUT = 910;
     public int computations = 0, depth = 3, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
     private boolean test;
-    private Cache cache = new Cache();
 
     static {
         Board.setNeighbours();
@@ -65,7 +62,6 @@ public class MinMax {
                 }
                 break;
             } finally {
-                Board.previousStates.clear();
                 depth++;
             }
         }
@@ -82,17 +78,15 @@ public class MinMax {
         if (allPossibleMoves.length == 0) {
             throw new RuntimeException("No possible moves");
         }
-        for (final Move move : allPossibleMoves) {
-            move.strength = board.makeMove(move).heuristicValue(player);
-            board.undo();
+        final BoardMove[] possibleConfigs = new BoardMove[allPossibleMoves.length];
+        for (int i = 0; i < allPossibleMoves.length; i++) {
+            possibleConfigs[i] = new BoardMove(allPossibleMoves[i], board, player);
         }
-        Arrays.sort(allPossibleMoves);
-        Move bestMove = allPossibleMoves[0];
-        for (final Move possibleMove : allPossibleMoves) {
+        Arrays.sort(possibleConfigs);
+        Move bestMove = possibleConfigs[0].move;
+        for (final BoardMove possibleConfig : possibleConfigs) {
             final long moveValue;
-            final Board movedBoard = board.makeMove(possibleMove);
-            moveValue = evaluate(movedBoard, flip(possibleMove.player), level, toTake, toGive);
-            movedBoard.undo();
+            moveValue = evaluate(possibleConfig.board, flip(possibleConfig.move.player), level, toTake, toGive);
             if (player == 1) {
                 if (toTake < moveValue) {
                     toTake = moveValue;
@@ -104,7 +98,7 @@ public class MinMax {
             }
             if (moveValue > max) {
                 max = moveValue;
-                bestMove = possibleMove;
+                bestMove = possibleConfig.move;
                 if (Math.abs(max - MAX_VALUE) <= 100) {
                     break;
                 }
@@ -119,54 +113,63 @@ public class MinMax {
         return bestMove.describe();
     }
 
+    private static class BoardMove implements Comparable<BoardMove> {
+        final Move move;
+        final Board board;
+
+        private BoardMove(final Move move, final Board board, final int player) {
+            this.board = board.makeMove(move);
+            move.strength = this.board.heuristicValue(player);
+            this.move = move;
+        }
+
+        @Override
+        public int compareTo(BoardMove o) {
+            return o.move.strength - move.strength;
+        }
+    }
+
     private long evaluate(final Board board, final int player, final int level, final long a, final long b) {
         long toTake = a, toGive = b;
         long max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             throw new RuntimeException("Time out...");
         }
-        final Boolean storedVal = cache.get(board);
-        if (storedVal != null) {
-            max = value(storedVal ? MAX_VALUE : MIN_VALUE, player);
+        final Integer terminalValue;
+        if ((terminalValue = board.terminalValue()) != null) {
+            max = value(terminalValue, player);
+            max += max < 0 ? level : -level;
+        } else if (level <= 0) {
+            max = board.heuristicValue(player);
         } else {
-            final Integer terminalValue;
-            if ((terminalValue = board.terminalValue()) != null) {
-                max = value(terminalValue, player);
-                max += max < 0 ? level : -level;
-            } else if (level <= 0) {
-                max = board.heuristicValue(player);
-            } else {
-                final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
-                for (final Move move : allPossibleMoves) {
-                    move.strength = board.makeMove(move).heuristicValue(player);
-                    board.undo();
+            final Move[] allPossibleMoves = board.getAllPossibleMoves(player);
+            final BoardMove[] possibleConfigs = new BoardMove[allPossibleMoves.length];
+            for (int i = 0; i < allPossibleMoves.length; i++) {
+                possibleConfigs[i] = new BoardMove(allPossibleMoves[i], board, player);
+            }
+            Arrays.sort(possibleConfigs);
+            for (final BoardMove possibleConfig : possibleConfigs) {
+                final long moveValue;
+                computations++;
+                moveValue = evaluate(possibleConfig.board, flip(possibleConfig.move.player), level - 1, toTake, toGive);
+                if (player == 1) {
+                    if (toTake < moveValue) {
+                        toTake = moveValue;
+                    }
+                } else {
+                    if (toGive > -moveValue) {
+                        toGive = -moveValue;
+                    }
                 }
-                Arrays.sort(allPossibleMoves);
-                for (final Move possibleMove : allPossibleMoves) {
-                    final long moveValue;
-                    final Board movedBoard = board.makeMove(possibleMove);
-                    computations++;
-                    moveValue = evaluate(movedBoard, flip(possibleMove.player), level - 1, toTake, toGive);
-                    movedBoard.undo();
-                    if (player == 1) {
-                        if (toTake < moveValue) {
-                            toTake = moveValue;
-                        }
-                    } else {
-                        if (toGive > -moveValue) {
-                            toGive = -moveValue;
-                        }
-                    }
-                    if (moveValue > max) {
-                        max = moveValue;
-                        if (Math.abs(max - MAX_VALUE) <= 100) {
-                            break;
-                        }
-                    }
-                    if (toTake >= toGive) {
-                        max = moveValue;
+                if (moveValue > max) {
+                    max = moveValue;
+                    if (Math.abs(max - MAX_VALUE) <= 100) {
                         break;
                     }
+                }
+                if (toTake >= toGive) {
+                    max = moveValue;
+                    break;
                 }
             }
         }
@@ -186,7 +189,7 @@ public class MinMax {
     }
 }
 
-class Move implements Comparable<Move> {
+class Move {
     final int x, y, player;
     int strength;
 
@@ -208,11 +211,6 @@ class Move implements Comparable<Move> {
                 ", player=" + player +
                 '}';
     }
-
-    @Override
-    public int compareTo(Move other) {
-        return other.strength - strength;
-    }
 }
 
 /**
@@ -221,7 +219,6 @@ class Move implements Comparable<Move> {
  * stored as a parent in memory, and another immutable Board is returned.
  */
 class Board {
-    static final List<int[][][]> previousStates = new ArrayList<>();
     static Function<int[], Integer> heuristicEval;
     int[][][] board;
     private static final int BOARD_SIZE = 5;
@@ -263,8 +260,7 @@ class Board {
     }
 
     Board makeMove(final Move move) {
-        previousStates.add(getCopy(board));
-        return play(move);
+        return new Board(getCopy(board)).play(move);
     }
 
     Board play(final Move move) {
@@ -287,30 +283,6 @@ class Board {
         for (final int neighbour : neighbours[x][y]) {
             play(new Move(neighbour / BOARD_SIZE, neighbour % BOARD_SIZE, player));
         }
-    }
-
-    /**
-     * We need to find the inverse of the function play.
-     * As play(board, move) = board', we look for the function play^-1(board', move) such that it gives us board.
-     */
-    void undo() {
-        /*
-         * What does a move do? Convert if necessary, and adds. Then it explodes if necessary. Which in turn calls play
-         * on other points.
-         *
-         * So then undo should convert and un-explode if necessary and subtract.
-         * Explosions need to be handled differently. An inverse explosion is needed if this point is at 0 now. Any
-         * other score is ambiguous.
-         *
-         *
-         *    X = X -1
-         *
-         *    Consider a list of board positions, with their corresponding affiliations and strengths. Maintaining a
-         *    list of each board position owner and strength based on timestamp, we can move to any given point in
-         *    time through the undo operation.
-         *
-         */
-        board = previousStates.remove(previousStates.size() - 1);
     }
 
     Integer terminalValue() {
@@ -398,7 +370,10 @@ class Board {
                 }
             }
         }
-        return (orbs + inThreat + bonus + contiguous);
+        return (int) (orbs * 0.7084669333471585
+                + inThreat * 0.030295549468825067
+                + bonus * 0.571449228843229
+                + contiguous * 2 * 0.20487033976225832);
     }
 
     static int[][][] getCopy(final int board[][][]) {
@@ -429,187 +404,5 @@ class Board {
     @Override
     public int hashCode() {
         return Arrays.deepHashCode(board);
-    }
-}
-
-class Cache {
-    private final Map<Board, Boolean> map;
-
-    public Cache() {
-        map = new ConcurrentHashMap<>();
-        new Thread(this::loadCache).start();
-    }
-
-    private void loadCache() {
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 4}, {1, 1}, {1, 1}, {1, 1}},
-                {{1, 2}, {1, 1}, {1, 1}, {1, 5}, {1, 1}},
-                {{1, 1}, {1, 1}, {1, 3}, {1, 4}, {0, 0}},
-                {{1, 2}, {1, 3}, {1, 1}, {1, 2}, {1, 2}},
-                {{1, 1}, {1, 2}, {1, 2}, {0, 0}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 1}, {2, 2}, {2, 1}},
-                {{1, 2}, {1, 3}, {2, 2}, {2, 1}, {2, 2}},
-                {{1, 2}, {0, 0}, {0, 0}, {2, 3}, {2, 2}},
-                {{1, 2}, {1, 3}, {0, 0}, {2, 1}, {2, 2}},
-                {{1, 1}, {1, 2}, {1, 1}, {0, 0}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {0, 0}, {1, 2}, {2, 1}},
-                {{1, 2}, {1, 2}, {1, 3}, {2, 1}, {2, 1}},
-                {{1, 2}, {2, 1}, {1, 1}, {2, 3}, {2, 2}},
-                {{1, 2}, {1, 3}, {1, 1}, {2, 1}, {2, 2}},
-                {{1, 1}, {1, 2}, {1, 1}, {2, 1}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{2, 1}, {2, 2}, {0, 0}, {1, 2}, {1, 1}},
-                {{2, 1}, {2, 3}, {1, 3}, {1, 1}, {1, 2}},
-                {{1, 2}, {2, 2}, {2, 1}, {1, 3}, {1, 2}},
-                {{2, 1}, {2, 3}, {2, 1}, {2, 1}, {0, 0}},
-                {{0, 0}, {2, 1}, {2, 1}, {2, 2}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {2, 1}, {2, 2}, {2, 1}},
-                {{1, 2}, {1, 3}, {1, 2}, {2, 3}, {2, 2}},
-                {{1, 2}, {1, 2}, {2, 1}, {2, 1}, {2, 2}},
-                {{1, 2}, {2, 1}, {0, 0}, {0, 0}, {2, 2}},
-                {{1, 1}, {1, 2}, {0, 0}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{2, 1}, {2, 2}, {2, 2}, {1, 2}, {1, 1}},
-                {{2, 2}, {2, 1}, {2, 2}, {2, 3}, {1, 1}},
-                {{2, 2}, {2, 2}, {2, 3}, {2, 3}, {1, 1}},
-                {{0, 0}, {2, 2}, {2, 1}, {2, 2}, {1, 1}},
-                {{2, 1}, {2, 2}, {2, 2}, {1, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{2, 2}, {2, 1}, {0, 0}, {2, 2}, {0, 0}},
-                {{2, 2}, {2, 3}, {2, 3}, {2, 2}, {2, 1}},
-                {{2, 2}, {2, 1}, {2, 1}, {2, 2}, {2, 1}},
-                {{2, 1}, {2, 3}, {2, 3}, {2, 3}, {2, 2}},
-                {{2, 1}, {2, 1}, {2, 1}, {0, 0}, {2, 2}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 1}, {2, 2}, {2, 1}},
-                {{0, 0}, {1, 3}, {1, 2}, {2, 2}, {2, 2}},
-                {{1, 2}, {1, 1}, {1, 2}, {2, 2}, {2, 2}},
-                {{1, 2}, {1, 1}, {2, 3}, {2, 2}, {2, 1}},
-                {{1, 1}, {2, 2}, {0, 0}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {0, 0}, {1, 2}, {2, 1}},
-                {{1, 1}, {1, 3}, {1, 3}, {2, 1}, {2, 2}},
-                {{1, 1}, {1, 2}, {1, 2}, {2, 2}, {2, 2}},
-                {{1, 2}, {1, 1}, {1, 2}, {2, 3}, {0, 0}},
-                {{1, 1}, {1, 1}, {1, 2}, {1, 1}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {0, 0}, {2, 2}, {2, 1}},
-                {{1, 2}, {1, 3}, {2, 1}, {2, 3}, {2, 2}},
-                {{1, 2}, {1, 3}, {0, 0}, {2, 3}, {2, 2}},
-                {{1, 2}, {1, 1}, {1, 2}, {2, 2}, {2, 2}},
-                {{1, 1}, {1, 2}, {0, 0}, {1, 1}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {2, 1}, {2, 1}, {2, 2}, {2, 1}},
-                {{1, 1}, {2, 3}, {0, 0}, {2, 3}, {2, 2}},
-                {{1, 1}, {1, 3}, {2, 2}, {2, 3}, {0, 0}},
-                {{1, 1}, {1, 3}, {1, 1}, {0, 0}, {2, 2}},
-                {{1, 1}, {1, 2}, {0, 0}, {1, 1}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {0, 0}, {1, 2}, {2, 1}},
-                {{1, 2}, {1, 1}, {1, 3}, {0, 0}, {2, 1}},
-                {{1, 2}, {1, 3}, {2, 2}, {0, 0}, {2, 2}},
-                {{1, 2}, {1, 3}, {1, 1}, {0, 0}, {2, 2}},
-                {{1, 1}, {1, 2}, {2, 1}, {2, 2}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{2, 3}, {2, 2}, {0, 0}, {2, 2}, {2, 1}},
-                {{2, 1}, {2, 1}, {2, 2}, {2, 3}, {0, 0}},
-                {{2, 1}, {2, 3}, {2, 3}, {2, 2}, {2, 2}},
-                {{2, 2}, {2, 1}, {2, 2}, {2, 2}, {2, 1}},
-                {{2, 1}, {2, 1}, {2, 1}, {2, 1}, {0, 0}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}},
-                {{1, 1}, {0, 0}, {1, 2}, {1, 3}, {1, 1}},
-                {{1, 2}, {1, 3}, {1, 1}, {1, 2}, {1, 2}},
-                {{1, 1}, {2, 1}, {2, 3}, {2, 1}, {1, 2}},
-                {{2, 1}, {2, 2}, {2, 2}, {0, 0}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{2, 1}, {2, 2}, {0, 0}, {2, 2}, {0, 0}},
-                {{2, 1}, {2, 3}, {2, 2}, {1, 1}, {1, 2}},
-                {{2, 1}, {2, 2}, {2, 3}, {1, 3}, {1, 1}},
-                {{2, 1}, {2, 3}, {2, 2}, {0, 0}, {1, 2}},
-                {{2, 1}, {2, 1}, {0, 0}, {2, 1}, {1, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {2, 1}, {2, 2}, {2, 1}},
-                {{1, 2}, {1, 3}, {1, 2}, {2, 3}, {2, 2}},
-                {{1, 2}, {1, 3}, {0, 0}, {2, 2}, {2, 2}},
-                {{1, 1}, {0, 0}, {1, 2}, {2, 2}, {2, 1}},
-                {{1, 1}, {2, 1}, {2, 2}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {2, 1}, {2, 1}, {2, 1}},
-                {{1, 2}, {1, 2}, {2, 2}, {2, 1}, {2, 2}},
-                {{1, 2}, {1, 1}, {2, 1}, {2, 3}, {2, 2}},
-                {{1, 1}, {0, 0}, {2, 1}, {2, 3}, {2, 2}},
-                {{1, 1}, {1, 2}, {2, 1}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{
-                {{1, 1}, {1, 2}, {1, 2}, {2, 1}, {2, 1}},
-                {{1, 2}, {1, 2}, {1, 1}, {2, 2}, {0, 0}},
-                {{2, 2}, {2, 3}, {2, 1}, {2, 1}, {2, 2}},
-                {{0, 0}, {2, 1}, {2, 3}, {0, 0}, {2, 1}},
-                {{2, 1}, {2, 2}, {2, 2}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {0, 0}, {1, 2}, {1, 2}, {1, 1}},
-                {{1, 2}, {1, 1}, {1, 2}, {0, 0}, {1, 2}},
-                {{1, 1}, {0, 0}, {1, 1}, {1, 3}, {2, 1}},
-                {{1, 1}, {1, 3}, {2, 1}, {1, 1}, {1, 2}},
-                {{1, 1}, {0, 0}, {1, 2}, {0, 0}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {0, 0}, {1, 3}, {1, 1}},
-                {{1, 1}, {0, 0}, {1, 1}, {0, 0}, {1, 2}},
-                {{0, 0}, {1, 2}, {1, 3}, {1, 1}, {1, 1}},
-                {{1, 1}, {1, 3}, {1, 1}, {1, 3}, {1, 2}},
-                {{1, 1}, {1, 2}, {1, 2}, {1, 1}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 3}, {1, 1}, {0, 0}},
-                {{1, 2}, {0, 0}, {1, 1}, {1, 3}, {1, 3}},
-                {{1, 2}, {1, 3}, {1, 3}, {1, 1}, {1, 2}},
-                {{1, 2}, {1, 2}, {1, 3}, {1, 3}, {1, 2}},
-                {{1, 1}, {0, 0}, {1, 2}, {1, 2}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 3}, {0, 0}, {1, 3}},
-                {{1, 2}, {0, 0}, {1, 1}, {1, 3}, {1, 3}},
-                {{1, 2}, {1, 3}, {1, 3}, {1, 1}, {1, 2}},
-                {{1, 2}, {1, 2}, {1, 3}, {1, 3}, {1, 2}},
-                {{1, 1}, {0, 0}, {1, 2}, {1, 2}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 2}, {1, 2}, {1, 3}, {1, 2}, {1, 4}},
-                {{0, 0}, {1, 3}, {1, 3}, {1, 1}, {1, 2}},
-                {{1, 2}, {1, 2}, {1, 1}, {1, 5}, {1, 1}},
-                {{1, 2}, {1, 3}, {1, 3}, {1, 2}, {1, 2}},
-                {{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}},
-                {{1, 1}, {1, 3}, {2, 1}, {2, 2}, {2, 1}},
-                {{1, 1}, {2, 2}, {2, 3}, {2, 2}, {2, 2}},
-                {{2, 2}, {2, 1}, {2, 1}, {2, 2}, {2, 2}},
-                {{2, 1}, {0, 0}, {2, 2}, {2, 1}, {2, 1}}}), true);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 1}, {1, 2}, {2, 2}, {0, 0}},
-                {{1, 2}, {1, 2}, {2, 2}, {2, 1}, {2, 2}},
-                {{1, 1}, {1, 2}, {2, 3}, {2, 2}, {0, 0}},
-                {{0, 0}, {1, 3}, {2, 3}, {2, 3}, {2, 2}},
-                {{1, 1}, {2, 1}, {2, 1}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{0, 0}, {2, 4}, {2, 2}, {0, 0}, {2, 1}},
-                {{2, 2}, {2, 2}, {2, 3}, {2, 3}, {2, 2}},
-                {{2, 2}, {0, 0}, {2, 2}, {0, 0}, {2, 2}},
-                {{2, 2}, {2, 3}, {2, 3}, {2, 3}, {2, 1}},
-                {{0, 0}, {2, 1}, {2, 1}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{2, 3}, {2, 3}, {2, 1}, {2, 2}, {2, 2}},
-                {{2, 1}, {2, 2}, {2, 3}, {2, 2}, {2, 2}},
-                {{2, 2}, {0, 0}, {2, 2}, {0, 0}, {2, 2}},
-                {{2, 2}, {2, 3}, {2, 3}, {2, 3}, {2, 1}},
-                {{0, 0}, {2, 1}, {2, 1}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{2, 1}, {2, 2}, {2, 1}, {2, 2}, {2, 2}},
-                {{2, 2}, {0, 0}, {2, 3}, {2, 2}, {2, 2}},
-                {{2, 2}, {2, 2}, {2, 1}, {2, 3}, {2, 2}},
-                {{2, 1}, {2, 1}, {2, 3}, {2, 1}, {2, 2}},
-                {{2, 3}, {0, 0}, {2, 1}, {2, 2}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 1}, {0, 0}, {1, 2}},
-                {{1, 2}, {1, 3}, {1, 1}, {1, 4}, {1, 2}},
-                {{1, 3}, {1, 2}, {1, 3}, {1, 2}, {0, 0}},
-                {{1, 1}, {1, 3}, {1, 2}, {1, 3}, {1, 2}},
-                {{0, 0}, {1, 1}, {1, 1}, {1, 1}, {1, 1}}}), true);
-        map.put(new Board(new int[][][]{{{2, 1}, {2, 1}, {0, 0}, {2, 1}, {2, 1}},
-                {{2, 1}, {2, 3}, {2, 2}, {2, 2}, {2, 1}},
-                {{2, 1}, {2, 3}, {2, 2}, {2, 2}, {2, 2}},
-                {{2, 2}, {2, 2}, {2, 2}, {1, 2}, {1, 1}},
-                {{2, 1}, {0, 0}, {2, 1}, {1, 2}, {0, 0}}}), false);
-        map.put(new Board(new int[][][]{{{0, 0}, {1, 2}, {1, 2}, {1, 1}, {1, 1}},
-                {{2, 2}, {2, 1}, {2, 3}, {1, 2}, {1, 2}},
-                {{2, 2}, {2, 3}, {0, 0}, {2, 2}, {1, 2}},
-                {{2, 2}, {2, 3}, {2, 2}, {1, 1}, {1, 1}},
-                {{2, 1}, {2, 1}, {2, 2}, {1, 1}, {2, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {0, 0}, {1, 2}, {0, 0}, {2, 1}},
-                {{1, 1}, {1, 3}, {2, 3}, {2, 2}, {2, 1}},
-                {{1, 1}, {1, 3}, {2, 2}, {2, 2}, {2, 1}},
-                {{1, 2}, {2, 2}, {0, 0}, {2, 2}, {2, 1}},
-                {{1, 1}, {0, 0}, {2, 1}, {0, 0}, {1, 1}}}), false);
-        map.put(new Board(new int[][][]{{{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}},
-                {{1, 1}, {1, 1}, {1, 3}, {0, 0}, {1, 2}},
-                {{2, 2}, {2, 3}, {1, 2}, {0, 0}, {0, 0}},
-                {{2, 1}, {2, 1}, {2, 2}, {0, 0}, {2, 2}},
-                {{2, 1}, {2, 2}, {2, 2}, {2, 2}, {2, 1}}}), false);
-    }
-
-    public Boolean get(Board board) {
-        return map.get(board);
     }
 }

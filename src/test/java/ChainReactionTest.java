@@ -23,6 +23,22 @@ public class ChainReactionTest {
     }
 
     @Test
+    public void analyzeDeep() {
+        final int[][][] board = {
+                {{1, 1}, {1, 2}, {1, 1}, {2, 2}, {2, 1}},
+                {{0, 0}, {0, 0}, {2, 2}, {2, 3}, {0, 0}},
+                {{2, 1}, {2, 1}, {1, 1}, {2, 1}, {0, 0}},
+                {{0, 0}, {1, 1}, {0, 0}, {1, 1}, {1, 2}},
+                {{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}}};
+        //MinMax.TIME_OUT = 1400;
+        MinMax minMax = new MinMax();
+        //minMax.setTest(true);
+        assertEquals("3 1", minMax.iterativeSearchForBestMove(board, 1));
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
+        //MinMax.TIME_OUT = 900;
+    }
+
+    @Test
     public void shouldBeFoundInCache() {
         final int[][][] board = {{{1, 1}, {0, 0}, {1, 2}, {1, 2}, {1, 1}},
                 {{1, 2}, {1, 1}, {1, 2}, {0, 0}, {1, 2}},
