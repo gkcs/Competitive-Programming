@@ -219,7 +219,7 @@ class Move {
  * stored as a parent in memory, and another immutable Board is returned.
  */
 class Board {
-    static Function<int[], Integer> heuristicEval;
+    Function<int[], Integer> heuristicEval = (vals) -> Arrays.stream(vals).sum();
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
@@ -341,9 +341,15 @@ class Board {
         int inThreat = 0;
         int bonus = 0;
         int contiguous = 0;
+        int blocks = 0;
+        int explosives = 0;
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j][1] == neighbours[i][j].length - 1) {
+                    explosives++;
+                }
                 if (board[i][j][0] == player) {
+                    blocks++;
                     orbs += board[i][j][1];
                     if (board[i][j][1] == neighbours[i][j].length - 1) {
                         ++contiguous;
@@ -370,10 +376,8 @@ class Board {
                 }
             }
         }
-        return (int) (orbs * 0.7084669333471585
-                + inThreat * 0.030295549468825067
-                + bonus * 0.571449228843229
-                + contiguous * 2 * 0.20487033976225832);
+        contiguous <<= 1;
+        return heuristicEval.apply(new int[]{orbs, inThreat, bonus, contiguous, blocks, explosives});
     }
 
     static int[][][] getCopy(final int board[][][]) {
