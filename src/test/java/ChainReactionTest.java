@@ -17,7 +17,7 @@ public class ChainReactionTest {
                 {{0, 0}, {0, 0}, {0, 0}, {2, 1}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}}};
         MinMax minMax = new MinMax();
-        //minMax.setTest(true);
+//        minMax.setTest(true);
         assertEquals("2 3", minMax.iterativeSearchForBestMove(board, 1));
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
     }
@@ -30,12 +30,13 @@ public class ChainReactionTest {
                 {{2, 1}, {2, 1}, {1, 1}, {2, 1}, {0, 0}},
                 {{0, 0}, {1, 1}, {0, 0}, {1, 1}, {1, 2}},
                 {{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}}};
-        //MinMax.TIME_OUT = 1400;
+        MinMax.TIME_OUT = 910;
         MinMax minMax = new MinMax();
         //minMax.setTest(true);
-        assertEquals("3 1", minMax.iterativeSearchForBestMove(board, 1));
+        String actual = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
-        //MinMax.TIME_OUT = 900;
+        assertEquals("3 1", actual);
+        MinMax.TIME_OUT = 910;
     }
 
     @Test
@@ -45,14 +46,14 @@ public class ChainReactionTest {
                 {{1, 1}, {1, 3}, {1, 1}, {2, 1}, {1, 2}},
                 {{1, 2}, {0, 0}, {2, 3}, {0, 0}, {0, 0}},
                 {{1, 1}, {2, 2}, {0, 0}, {2, 1}, {1, 1}}};
-        MinMax.TIME_OUT = 1800;
+        MinMax.TIME_OUT = 910;
         MinMax minMax = new MinMax();
         //minMax.setTest(true);
         String actual = minMax.iterativeSearchForBestMove(board, 1);
         System.out.println(actual);
 //        assertEquals("3 1", actual);
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
-        MinMax.TIME_OUT = 900;
+        MinMax.TIME_OUT = 910;
     }
 
     @Test

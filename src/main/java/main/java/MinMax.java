@@ -55,7 +55,7 @@ public class MinMax {
         String bestMove = "LOL";
         while (depth < 60) {
             try {
-                bestMove = findBestMove(Board.getCopy(board), player, depth);
+                bestMove = findBestMove(board, player, depth);
             } catch (final Exception e) {
                 if (!e.getMessage().equals("Time out...")) {
                     bestMove = e.getMessage() + " " + e.getClass().getSimpleName();
@@ -126,6 +126,14 @@ public class MinMax {
         @Override
         public int compareTo(BoardMove o) {
             return o.move.strength - move.strength;
+        }
+
+        @Override
+        public String toString() {
+            return "BoardMove{" +
+                    "move=" + move +
+                    ", board=" + board +
+                    '}';
         }
     }
 
@@ -223,9 +231,35 @@ class Board {
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
+    private int[] score = new int[3];
+    private final Move[] moves = new Move[BOARD_SIZE * BOARD_SIZE];
 
     Board(final int[][][] board) {
-        this.board = board;
+        this.board = getCopy(board);
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                score[board[i][j][0]]++;
+            }
+        }
+    }
+
+    private Board(final int[][][] board, final int score[]) {
+        this.board = getCopy(board);
+        System.arraycopy(score, 0, this.score, 0, score.length);
+    }
+
+    Move[] getAllPossibleMoves(final int player) {
+        int length = 0;
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (MinMax.flip(player) != board[i][j][0]) {
+                    moves[length++] = new Move(i, j, player);
+                }
+            }
+        }
+        final Move[] dest = new Move[length];
+        System.arraycopy(moves, 0, dest, 0, dest.length);
+        return dest;
     }
 
     static void setNeighbours() {
@@ -260,10 +294,16 @@ class Board {
     }
 
     Board makeMove(final Move move) {
-        return new Board(getCopy(board)).play(move);
+        return new Board(board, score).play(move);
     }
 
     Board play(final Move move) {
+        if (board[move.x][move.y][0] == MinMax.flip(move.player)) {
+            score[MinMax.flip(move.player)]--;
+            score[move.player]++;
+        } else if (board[move.x][move.y][0] == 0) {
+            score[move.player]++;
+        }
         board[move.x][move.y][0] = move.player;
         board[move.x][move.y][1]++;
         if (terminalValue() != null) {
@@ -273,6 +313,7 @@ class Board {
             board[move.x][move.y][1] = board[move.x][move.y][1] - neighbours[move.x][move.y].length;
             if (board[move.x][move.y][1] == 0) {
                 board[move.x][move.y][0] = 0;
+                score[move.player]--;
             }
             explode(move.x, move.y, move.player);
         }
@@ -286,34 +327,11 @@ class Board {
     }
 
     Integer terminalValue() {
-        int first = 0;
-        int second = 0;
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j][0] == 1) {
-                    first++;
-                } else if (board[i][j][0] == 2) {
-                    second++;
-                }
-            }
-        }
-        if ((first + second > 1) && (first == 0 || second == 0)) {
-            return first == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
+        if ((score[1] + score[2] > 1) && (score[1] == 0 || score[2] == 0)) {
+            return score[1] == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
         } else {
             return null;
         }
-    }
-
-    Move[] getAllPossibleMoves(final int player) {
-        final List<Move> list = new ArrayList<>();
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                if (player == board[i][j][0] || board[i][j][0] == 0) {
-                    list.add(new Move(i, j, player));
-                }
-            }
-        }
-        return list.toArray(new Move[list.size()]);
     }
 
     @Override
@@ -341,15 +359,9 @@ class Board {
         int inThreat = 0;
         int bonus = 0;
         int contiguous = 0;
-        int blocks = 0;
-        int explosives = 0;
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
-                if (board[i][j][1] == neighbours[i][j].length - 1) {
-                    explosives++;
-                }
                 if (board[i][j][0] == player) {
-                    blocks++;
                     orbs += board[i][j][1];
                     if (board[i][j][1] == neighbours[i][j].length - 1) {
                         ++contiguous;
@@ -377,7 +389,7 @@ class Board {
             }
         }
         contiguous <<= 1;
-        return heuristicEval.apply(new int[]{orbs, inThreat, bonus, contiguous, blocks, explosives});
+        return heuristicEval.apply(new int[]{orbs, inThreat, bonus, contiguous});
     }
 
     static int[][][] getCopy(final int board[][][]) {
