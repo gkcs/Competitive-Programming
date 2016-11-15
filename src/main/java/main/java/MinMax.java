@@ -93,7 +93,7 @@ public class MinMax {
         Move bestMove = possibleConfigs[0].move;
         for (final BoardMove possibleConfig : possibleConfigs) {
             final long moveValue;
-            moveValue = evaluate(possibleConfig.board, flip(player), level, toTake, toGive);
+            moveValue = evaluate(possibleConfig.board, flip(player), level, toTake, toGive, -possibleConfig.strength);
             if (player == 1) {
                 if (toTake < moveValue) {
                     toTake = moveValue;
@@ -120,7 +120,11 @@ public class MinMax {
         return bestMove.describe();
     }
 
-    private long evaluate(final Board board, final int player, final int level, final long a, final long b) {
+    private long evaluate(final Board board,
+                          final int player,
+                          final int level,
+                          final long a,
+                          final long b, long heuristicValue) {
         long toTake = a, toGive = b;
         long max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
@@ -131,7 +135,7 @@ public class MinMax {
             max = terminalValue * ((-player << 1) + 3);
             max += max < 0 ? level : -level;
         } else if (level <= 0) {
-            max = board.heuristicValue(player);
+            max = heuristicValue;
         } else {
             final BoardMove[] possibleConfigs = new BoardMove[board.choices[player] + board.choices[0]];
             for (int i = 0; i < board.choices[0]; i++) {
@@ -144,7 +148,12 @@ public class MinMax {
             for (final BoardMove possibleConfig : possibleConfigs) {
                 final long moveValue;
                 computations++;
-                moveValue = evaluate(possibleConfig.board, flip(player), level - 1, toTake, toGive);
+                moveValue = evaluate(possibleConfig.board,
+                                     flip(player),
+                                     level - 1,
+                                     toTake,
+                                     toGive,
+                                     -possibleConfig.strength);
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
@@ -363,39 +372,24 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        int orbs = 0;
-        int inThreat = 0;
-        int bonus = 0;
         int contiguous = 0;
         for (int m = 0; m < choices[player]; m++) {
             final int i = moves[player][m].x;
             final int j = moves[player][m].y;
-            orbs += board[i][j][1];
             if (board[i][j][1] == neighbours[i][j].length - 1) {
                 ++contiguous;
             }
-            boolean surround = false;
-            for (int k = 0; k < neighbours[i][j].length; k++) {
-                final int row = neighbours[i][j][k] / BOARD_SIZE;
-                final int col = neighbours[i][j][k] % BOARD_SIZE;
-                final int[] neighbour = board[row][col];
-                final int criticalMass = neighbours[row][col].length - 1;
-                if (neighbour[0] == MinMax.flip(player) && neighbour[1] == criticalMass) {
-                    inThreat -= 5 - criticalMass;
-                    surround = true;
-                }
-            }
-            if (!surround) {
-                if (neighbours[i][j].length < 4) {
-                    bonus += neighbours[i][j].length == 3 ? 2 : 3;
-                }
-                if (board[i][j][1] == neighbours[i][j].length - 1) {
-                    bonus += 2;
-                }
+        }
+        int threats = 0;
+        final int opponent = MinMax.flip(player);
+        for (int m = 0; m < choices[opponent]; m++) {
+            final int i = moves[opponent][m].x;
+            final int j = moves[opponent][m].y;
+            if (board[i][j][1] == neighbours[i][j].length - 1) {
+                ++threats;
             }
         }
-        contiguous <<= 1;
-        return orbs + inThreat + bonus + contiguous;
+        return choices[player] - choices[opponent] + contiguous - threats;
     }
 
     private int[][][] getCopy(final int board[][][]) {
