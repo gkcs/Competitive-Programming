@@ -321,11 +321,7 @@ class Board {
                     break;
                 }
             }
-            System.arraycopy(moves[opponent],
-                             index + 1,
-                             moves[opponent],
-                             index,
-                             choices[opponent] - 1 - index);
+            moves[opponent][index] = moves[opponent][choices[opponent] - 1];
             choices[opponent]--;
             moves[move.player][choices[move.player]++] = ALL_MOVES[move.player][move.x][move.y];
             //handle other players deletion
@@ -336,11 +332,7 @@ class Board {
                     break;
                 }
             }
-            System.arraycopy(moves[0],
-                             index + 1,
-                             moves[0],
-                             index,
-                             choices[0] - 1 - index);
+            moves[0][index] = moves[0][choices[0] - 1];
             choices[0]--;
             moves[move.player][choices[move.player]++] = ALL_MOVES[move.player][move.x][move.y];
         }
@@ -359,11 +351,7 @@ class Board {
                         break;
                     }
                 }
-                System.arraycopy(moves[move.player],
-                                 index + 1,
-                                 moves[move.player],
-                                 index,
-                                 choices[move.player] - 1 - index);
+                moves[move.player][index] = moves[move.player][choices[move.player] - 1];
                 choices[move.player]--;
                 moves[0][choices[0]++] = ALL_MOVES[0][move.x][move.y];
             }
