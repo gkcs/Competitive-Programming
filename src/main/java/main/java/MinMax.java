@@ -92,13 +92,13 @@ public class MinMax {
         result.bestMove = startConfigs[0].move;
         try {
             for (final BoardMove possibleConfig : startConfigs) {
-                final long moveValue;
-                moveValue = evaluate(possibleConfig.board,
-                                     flip(player),
-                                     level,
-                                     toTake,
-                                     toGive,
-                                     -possibleConfig.strength);
+                final int moveValue = evaluate(possibleConfig.board.getCopy(),
+                                               flip(player),
+                                               level,
+                                               toTake,
+                                               toGive,
+                                               -possibleConfig.strength);
+                possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
@@ -123,20 +123,20 @@ public class MinMax {
         } catch (TimeoutException e) {
             result.timeOut = true;
         }
-        //// TODO: 15/11/16 Change the initial configs as per discovery at this level
+        Arrays.sort(startConfigs);
         eval = max;
         moves = board.choices[player] + board.choices[0];
         return result;
     }
 
-    private long evaluate(final Board board,
-                          final int player,
-                          final int level,
-                          final long a,
-                          final long b,
-                          final long heuristicValue) throws TimeoutException {
+    private int evaluate(final Board board,
+                         final int player,
+                         final int level,
+                         final long a,
+                         final long b,
+                         final int heuristicValue) throws TimeoutException {
         long toTake = a, toGive = b;
-        long max = MIN_VALUE;
+        int max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             throw new TimeoutException("Time out...");
         }
@@ -156,14 +156,13 @@ public class MinMax {
             }
             Arrays.sort(configurations);
             for (final BoardMove possibleConfig : configurations) {
-                final long moveValue;
                 computations++;
-                moveValue = evaluate(possibleConfig.board,
-                                     flip(player),
-                                     level - 1,
-                                     toTake,
-                                     toGive,
-                                     -possibleConfig.strength);
+                final int moveValue = evaluate(possibleConfig.board,
+                                               flip(player),
+                                               level - 1,
+                                               toTake,
+                                               toGive,
+                                               -possibleConfig.strength);
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
@@ -191,7 +190,7 @@ public class MinMax {
     private static class BoardMove implements Comparable<BoardMove> {
         final Move move;
         final Board board;
-        final int strength;
+        int strength;
 
         private BoardMove(final Move move, final Board board, final int player) {
             final Move moveToBeMade = Board.ALL_MOVES[player][move.x][move.y];
@@ -436,5 +435,9 @@ class Board {
                 }
             }
         }
+    }
+
+    Board getCopy() {
+        return new Board(board, moves, choices);
     }
 }
