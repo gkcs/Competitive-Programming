@@ -13,6 +13,10 @@ import java.util.function.Function;
  * Use the first few searches to order the moves. At any given point of time, return the best move as it is the best
  * searched so far depth =(height/height+1).
  * <p>
+ * <p>
+ * Caching could be used for this. Although I am wary of it. A cache based on move number should be useful through.
+ * The concept of a killer heuristic seems useful. Will keep two killer move on each depth.
+ * <p>
  * The heuristic should be better.
  */
 class ChainReaction {
@@ -44,6 +48,7 @@ class ChainReaction {
  * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
  */
 public class MinMax {
+    public static final int MAX_DEPTH = 60;
     public static int TIME_OUT = 910;
     public int computations = 0, depth = 4, moves = 0;
     public long eval = 0;
@@ -51,11 +56,14 @@ public class MinMax {
     private final long startTime = System.currentTimeMillis();
     private boolean test;
     private BoardMove[] startConfigs;
+    private final Move[] killerMoves = new Move[MAX_DEPTH];
 
     static {
         Board.setMoves();
         Board.setNeighbours();
     }
+
+    private boolean timeOut;
 
     /**
      * Moves should be ordered as per the last best sequence. On the final iteration, when an exception is thrown,
@@ -74,22 +82,20 @@ public class MinMax {
             startConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
         }
         Arrays.sort(startConfigs);
-        Result result = new Result();
-        result.bestMove = startConfigs[0].move;
-        while (depth < 60 && !result.timeOut) {
-            result = findBestMove(player, depth, board);
+        Move bestMove = startConfigs[0].move;
+        while (depth < MAX_DEPTH && !timeOut) {
+            bestMove = findBestMove(player, 0);
             depth++;
         }
-        return result.bestMove.describe();
+        eval = startConfigs[0].strength;
+        moves = board.choices[player] + board.choices[0];
+        return bestMove.describe();
     }
 
-    private Result findBestMove(final int player,
-                                final int level,
-                                final Board board) {
+    private Move findBestMove(final int player, final int level) {
         long toTake = MIN_VALUE, toGive = MAX_VALUE;
         long max = MIN_VALUE;
-        Result result = new Result();
-        result.bestMove = startConfigs[0].move;
+        Move bestMove = startConfigs[0].move;
         try {
             for (final BoardMove possibleConfig : startConfigs) {
                 final int moveValue = evaluate(possibleConfig.board.getCopy(),
@@ -110,23 +116,21 @@ public class MinMax {
                 }
                 if (moveValue > max) {
                     max = moveValue;
-                    result.bestMove = possibleConfig.move;
+                    bestMove = possibleConfig.move;
                     if (Math.abs(max - MAX_VALUE) <= 100) {
                         break;
                     }
                 }
                 if (toTake >= toGive) {
-                    max = moveValue;
+                    killerMoves[level] = possibleConfig.move;
                     break;
                 }
             }
         } catch (TimeoutException e) {
-            result.timeOut = true;
+            timeOut = true;
         }
         Arrays.sort(startConfigs);
-        eval = max;
-        moves = board.choices[player] + board.choices[0];
-        return result;
+        return bestMove;
     }
 
     private int evaluate(final Board board,
@@ -144,7 +148,7 @@ public class MinMax {
         if ((terminalValue = board.terminalValue()) != null) {
             max = terminalValue * ((-player << 1) + 3);
             max += max < 0 ? level : -level;
-        } else if (level <= 0) {
+        } else if (level >= depth) {
             max = heuristicValue;
         } else {
             final BoardMove[] configurations = new BoardMove[board.choices[player] + board.choices[0]];
@@ -180,6 +184,7 @@ public class MinMax {
                 }
                 if (toTake >= toGive) {
                     max = moveValue;
+                    killerMoves[level] = possibleConfig.move;
                     break;
                 }
             }
@@ -220,11 +225,6 @@ public class MinMax {
 
     public void setTest(boolean test) {
         this.test = test;
-    }
-
-    private static final class Result {
-        boolean timeOut;
-        Move bestMove;
     }
 }
 
@@ -275,7 +275,7 @@ class Board {
         this.board = getCopy(board);
     }
 
-    private Board(final int[][][] board, final Move[][] moves, final int choices[]) {
+    Board(final int[][][] board, final Move[][] moves, final int choices[]) {
         System.arraycopy(choices, 0, this.choices, 0, choices.length);
         for (int i = 0; i < COLORS; i++) {
             System.arraycopy(moves[i], 0, this.moves[i], 0, choices[i]);
@@ -373,7 +373,7 @@ class Board {
     }
 
     Integer terminalValue() {
-        if ((choices[1] + choices[2] > 1) && (choices[1] == 0 || choices[2] == 0)) {
+        if (((choices[1] | choices[2]) > 1) && (choices[1] == 0 || choices[2] == 0)) {
             return choices[1] == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
         } else {
             return null;

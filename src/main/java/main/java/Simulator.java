@@ -80,20 +80,27 @@ public class Simulator {
         };
     }
 
+    static int gameNumber = 0;
+    static boolean printed[] = new boolean[5000];
+
     private static void playGame(final Board board,
                                  final Function<int[], Integer> first,
                                  final Function<int[], Integer> second, int player_1, int player_2) {
         int count = 0;
+        final MinMax minMax = new MinMax();
+        gameNumber++;
         try {
-            while (true) {
+            while (board.terminalValue() == null) {
                 board.heuristicEval = first;
-                playMove(board, new MinMax(), 1, count);
+                playMove(board, minMax, 1, count);
                 count++;
-                board.heuristicEval = second;
-                playMove(board, new MinMax(), 2, count);
-                count++;
+                if (board.terminalValue() == null) {
+                    board.heuristicEval = second;
+                    playMove(board, minMax, 2, count);
+                    count++;
+                }
             }
-        } catch (Exception ignore) {
+            System.out.println(board);
             if (count % 2 == 0) {
                 scoreBoard[player_2].increment();
                 System.out.println(player_2 + " BEAT " + player_1);
@@ -103,22 +110,25 @@ public class Simulator {
             }
             plays[player_1].increment();
             plays[player_2].increment();
-            System.out.println("\n" + Arrays.toString(scoreBoard) + Arrays.toString(plays));
+            //System.out.println("\n" + Arrays.toString(scoreBoard) + Arrays.toString(plays));
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
     private static void playMove(final Board board, final MinMax minMax, final int player, int count) {
         final String[] split = minMax.iterativeSearchForBestMove(board.board, player).split(" ");
-        board.play(Board.ALL_MOVES[player][Integer.parseInt(split[0])][Integer.parseInt(split[1])]);
+        board.makeMove(Board.ALL_MOVES[player][Integer.parseInt(split[0])][Integer.parseInt(split[1])]);
         //System.out.println("MOVE: " + count + " " + player);
-        System.out.println(Arrays.toString(split) + " " + count);
-//        if (Math.abs(minMax.eval - MinMax.MAX_VALUE) < 100) {
-//            System.out.println(toString(board) + (player == 1 ? "true);" : "false);"));
-//        }
+//        System.out.println(Arrays.toString(split) + " " + count);
+        if (Math.abs(minMax.eval - MinMax.MAX_VALUE) < 100 && !printed[gameNumber]) {
+            printed[gameNumber] = true;
+            System.out.println(toString(board.board) + (player == 1 ? "true);" : "false);"));
+        }
 //        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves);
     }
 
-    public String toString(int[][][] board) {
+    static String toString(int[][][] board) {
         final StringBuilder stringBuilder = new StringBuilder("map.put(new Board(new int[][][]{");
         for (final int row[][] : board) {
             stringBuilder.append('{');
