@@ -113,8 +113,27 @@ public class Simulator {
         //System.out.println("MOVE: " + count + " " + player);
         System.out.println(Arrays.toString(split) + " " + count);
 //        if (Math.abs(minMax.eval - MinMax.MAX_VALUE) < 100) {
-//            System.out.println(board + (player == 1 ? "true);" : "false);"));
+//            System.out.println(toString(board) + (player == 1 ? "true);" : "false);"));
 //        }
 //        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves);
+    }
+
+    public String toString(int[][][] board) {
+        final StringBuilder stringBuilder = new StringBuilder("map.put(new Board(new int[][][]{");
+        for (final int row[][] : board) {
+            stringBuilder.append('{');
+            for (final int col[] : row) {
+                stringBuilder.append('{');
+                for (final int content : col) {
+                    stringBuilder.append(content).append(',');
+                }
+                stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
+                stringBuilder.append('}').append(',');
+            }
+            stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
+            stringBuilder.append('}').append(',').append('\n');
+        }
+        stringBuilder.delete(stringBuilder.length() - 2, stringBuilder.length()).append("}),");
+        return stringBuilder.toString();
     }
 }

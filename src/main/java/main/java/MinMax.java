@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * Iterative deepening and alpha beta are the ways to move forward.
+ * Use the first few searches to order the moves. At any given point of time, return the best move as it is the best
+ * searched so far depth =(height/height+1).
+ * <p>
+ * The heuristic should be better.
  */
 class ChainReaction {
     public static void main(String[] args) throws IOException {
@@ -41,7 +44,7 @@ class ChainReaction {
  */
 public class MinMax {
     public static int TIME_OUT = 910;
-    public int computations = 0, depth = 3, moves = 0;
+    public int computations = 0, depth = 4, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
@@ -125,7 +128,7 @@ public class MinMax {
         }
         final Integer terminalValue;
         if ((terminalValue = board.terminalValue()) != null) {
-            max = value(terminalValue, player);
+            max = terminalValue * ((-player << 1) + 3);
             max += max < 0 ? level : -level;
         } else if (level <= 0) {
             max = board.heuristicValue(player);
@@ -169,7 +172,6 @@ public class MinMax {
     private static class BoardMove implements Comparable<BoardMove> {
         final Move move;
         final Board board;
-
         final int strength;
 
         private BoardMove(final Move move, final Board board, final int player) {
@@ -192,10 +194,6 @@ public class MinMax {
                     '}';
         }
 
-    }
-
-    private long value(final long moveValue, final int player) {
-        return moveValue * (player == 1 ? 1 : -1);
     }
 
     static int flip(final int player) {
@@ -221,21 +219,6 @@ class Move {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        Move move = (Move) o;
-        return x == move.x && y == move.y && player == move.player;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = x;
-        result = 31 * result + y;
-        result = 31 * result + player;
-        return result;
-    }
-
-    @Override
     public String toString() {
         return "Move{" +
                 "x=" + x +
@@ -255,7 +238,7 @@ class Board {
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
-    public static final int COLORS = 3;
+    private static final int COLORS = 3;
     final Move[][] moves = new Move[COLORS][BOARD_SIZE * BOARD_SIZE];
     final int[] choices = new int[COLORS];
     static final Move ALL_MOVES[][][] = new Move[COLORS][BOARD_SIZE][BOARD_SIZE];
@@ -376,22 +359,7 @@ class Board {
 
     @Override
     public String toString() {
-        final StringBuilder stringBuilder = new StringBuilder("map.put(new Board(new int[][][]{");
-        for (final int row[][] : board) {
-            stringBuilder.append('{');
-            for (final int col[] : row) {
-                stringBuilder.append('{');
-                for (final int content : col) {
-                    stringBuilder.append(content).append(',');
-                }
-                stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
-                stringBuilder.append('}').append(',');
-            }
-            stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
-            stringBuilder.append('}').append(',').append('\n');
-        }
-        stringBuilder.delete(stringBuilder.length() - 2, stringBuilder.length()).append("}),");
-        return stringBuilder.toString();
+        return Arrays.deepToString(board);
     }
 
     int heuristicValue(final int player) {
@@ -440,26 +408,6 @@ class Board {
             }
         }
         return copyBoard;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        final Board other = (Board) o;
-        for (int i = 0; i < BOARD_SIZE; i++) {
-            for (int j = 0; j < BOARD_SIZE; j++) {
-                for (int k = 0; k < 2; k++) {
-                    if (other.board[i][j][k] != board[i][j][k]) {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return Arrays.deepHashCode(board);
     }
 
     static void setMoves() {
