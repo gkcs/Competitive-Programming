@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
@@ -49,86 +50,95 @@ public class MinMax {
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
     private boolean test;
+    private BoardMove[] startConfigs;
 
     static {
         Board.setMoves();
         Board.setNeighbours();
     }
 
-    public String iterativeSearchForBestMove(final int[][][] board, final int player) {
-        String bestMove = "LOL";
-        while (depth < 60) {
-            try {
-                bestMove = findBestMove(board, player, depth);
-            } catch (final Exception e) {
-                //e.printStackTrace();
-                if (!e.getMessage().equals("Time out...")) {
-                    bestMove = e.getMessage() + " " + e.getClass().getSimpleName();
-                }
-                break;
-            } finally {
-                depth++;
-            }
-        }
-        return bestMove;
-    }
-
-    private String findBestMove(final int[][][] rawBoard,
-                                final int player,
-                                final int level) {
-        final Board board = new Board(rawBoard);
-        long toTake = MIN_VALUE, toGive = MAX_VALUE;
-        long max = MIN_VALUE;
+    /**
+     * Moves should be ordered as per the last best sequence. On the final iteration, when an exception is thrown,
+     * the best move will be propagated upwards from the {link #findBestMove} method.
+     */
+    public String iterativeSearchForBestMove(final int[][][] game, final int player) {
+        final Board board = new Board(game);
         if (board.choices[player] + board.choices[0] == 0) {
             throw new RuntimeException("No possible moves");
         }
-        final BoardMove[] possibleConfigs = new BoardMove[board.choices[player] + board.choices[0]];
+        startConfigs = new BoardMove[board.choices[player] + board.choices[0]];
         for (int i = 0; i < board.choices[0]; i++) {
-            possibleConfigs[i] = new BoardMove(board.moves[0][i], board, player);
+            startConfigs[i] = new BoardMove(board.moves[0][i], board, player);
         }
         for (int i = 0; i < board.choices[player]; i++) {
-            possibleConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
+            startConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
         }
-        Arrays.sort(possibleConfigs);
-        Move bestMove = possibleConfigs[0].move;
-        for (final BoardMove possibleConfig : possibleConfigs) {
-            final long moveValue;
-            moveValue = evaluate(possibleConfig.board, flip(player), level, toTake, toGive, -possibleConfig.strength);
-            if (player == 1) {
-                if (toTake < moveValue) {
-                    toTake = moveValue;
+        Arrays.sort(startConfigs);
+        Result result = new Result();
+        result.bestMove = startConfigs[0].move;
+        while (depth < 60 && !result.timeOut) {
+            result = findBestMove(player, depth, board);
+            depth++;
+        }
+        return result.bestMove.describe();
+    }
+
+    private Result findBestMove(final int player,
+                                final int level,
+                                final Board board) {
+        long toTake = MIN_VALUE, toGive = MAX_VALUE;
+        long max = MIN_VALUE;
+        Result result = new Result();
+        result.bestMove = startConfigs[0].move;
+        try {
+            for (final BoardMove possibleConfig : startConfigs) {
+                final long moveValue;
+                moveValue = evaluate(possibleConfig.board,
+                                     flip(player),
+                                     level,
+                                     toTake,
+                                     toGive,
+                                     -possibleConfig.strength);
+                if (player == 1) {
+                    if (toTake < moveValue) {
+                        toTake = moveValue;
+                    }
+                } else {
+                    if (toGive > -moveValue) {
+                        toGive = -moveValue;
+                    }
                 }
-            } else {
-                if (toGive > -moveValue) {
-                    toGive = -moveValue;
+                if (moveValue > max) {
+                    max = moveValue;
+                    result.bestMove = possibleConfig.move;
+                    if (Math.abs(max - MAX_VALUE) <= 100) {
+                        break;
+                    }
                 }
-            }
-            if (moveValue > max) {
-                max = moveValue;
-                bestMove = possibleConfig.move;
-                if (Math.abs(max - MAX_VALUE) <= 100) {
+                if (toTake >= toGive) {
+                    max = moveValue;
                     break;
                 }
             }
-            if (toTake >= toGive) {
-                max = moveValue;
-                break;
-            }
+        } catch (TimeoutException e) {
+            result.timeOut = true;
         }
+        //// TODO: 15/11/16 Change the initial configs as per discovery at this level
         eval = max;
         moves = board.choices[player] + board.choices[0];
-        return bestMove.describe();
+        return result;
     }
 
     private long evaluate(final Board board,
                           final int player,
                           final int level,
                           final long a,
-                          final long b, long heuristicValue) {
+                          final long b,
+                          final long heuristicValue) throws TimeoutException {
         long toTake = a, toGive = b;
         long max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
-            throw new RuntimeException("Time out...");
+            throw new TimeoutException("Time out...");
         }
         final Integer terminalValue;
         if ((terminalValue = board.terminalValue()) != null) {
@@ -137,15 +147,15 @@ public class MinMax {
         } else if (level <= 0) {
             max = heuristicValue;
         } else {
-            final BoardMove[] possibleConfigs = new BoardMove[board.choices[player] + board.choices[0]];
+            final BoardMove[] configurations = new BoardMove[board.choices[player] + board.choices[0]];
             for (int i = 0; i < board.choices[0]; i++) {
-                possibleConfigs[i] = new BoardMove(board.moves[0][i], board, player);
+                configurations[i] = new BoardMove(board.moves[0][i], board, player);
             }
             for (int i = 0; i < board.choices[player]; i++) {
-                possibleConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
+                configurations[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
             }
-            Arrays.sort(possibleConfigs);
-            for (final BoardMove possibleConfig : possibleConfigs) {
+            Arrays.sort(configurations);
+            for (final BoardMove possibleConfig : configurations) {
                 final long moveValue;
                 computations++;
                 moveValue = evaluate(possibleConfig.board,
@@ -211,6 +221,11 @@ public class MinMax {
 
     public void setTest(boolean test) {
         this.test = test;
+    }
+
+    private static final class Result {
+        boolean timeOut;
+        Move bestMove;
     }
 }
 
@@ -372,24 +387,33 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        int contiguous = 0;
+        final int opponent = MinMax.flip(player);
+        int orbs = choices[player] - choices[opponent] / (choices[player] + choices[opponent]);
+        int stability = 0;
+        int mobility = (choices[player] - choices[opponent]) / (choices[player] + choices[opponent] + (choices[0] << 1));
+        int periphery = 0;
+        int explosivity = 0;
         for (int m = 0; m < choices[player]; m++) {
             final int i = moves[player][m].x;
             final int j = moves[player][m].y;
+            if (neighbours[i][j].length < 4) {
+                periphery += -neighbours[i][j].length + 5;
+            }
             if (board[i][j][1] == neighbours[i][j].length - 1) {
-                ++contiguous;
+                ++explosivity; //Update to find all nearby explosives
             }
         }
-        int threats = 0;
-        final int opponent = MinMax.flip(player);
         for (int m = 0; m < choices[opponent]; m++) {
             final int i = moves[opponent][m].x;
             final int j = moves[opponent][m].y;
+            if (neighbours[i][j].length < 4) {
+                periphery -= -neighbours[i][j].length + 5;
+            }
             if (board[i][j][1] == neighbours[i][j].length - 1) {
-                ++threats;
+                --explosivity; //Update to find all nearby explosives
             }
         }
-        return choices[player] - choices[opponent] + contiguous - threats;
+        return orbs + stability + mobility + periphery + explosivity;
     }
 
     private int[][][] getCopy(final int board[][][]) {
