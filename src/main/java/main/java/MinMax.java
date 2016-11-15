@@ -168,9 +168,10 @@ public class MinMax {
         final int strength;
 
         private BoardMove(final Move move, final Board board, final int player) {
-            this.board = board.makeMove(move);
+            final Move moveToBeMade = Board.ALL_MOVES[player][move.x][move.y];
+            this.board = board.makeMove(moveToBeMade);
             this.strength = this.board.heuristicValue(player);
-            this.move = move;
+            this.move = moveToBeMade;
         }
 
         @Override
