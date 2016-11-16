@@ -20,6 +20,13 @@ import java.util.function.Function;
  * NEVER TRY GARBAGE COLLECTION OR CACHING FOR THESE PROGRAMS.  RIDICULOUSLY COMPLICATED DEBUGGING + ALMOST NO
  * PERFORMANCE IMPROVEMENT.
  * The heuristic should be better.
+ * <p>
+ * Next stop: Multithreading. As long as they have more than one processor, the program efficiency will shoot up. The
+ * top part of the program should be multi threaded, as it offers maximum gains for minimum effort.
+ * Some considerations here are, will the program have enough juice for higher computations? Will alpha beta in multi
+ * threaded environment be as efficient as in sequential. If gains for 20% are given, I am good. I can assume that
+ * the first few moves will cut off the rest. Which means some sort of mechanism for updating overall scores has to
+ * exist.
  */
 class ChainReaction {
     public static void main(String[] args) throws IOException {
@@ -50,8 +57,8 @@ class ChainReaction {
  * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
  */
 public class MinMax {
-    public static final int MAX_DEPTH = 60;
-    public static int TIME_OUT = 910;
+    private static final int MAX_DEPTH = 60;
+    public static int TIME_OUT = 1200;
     public int computations = 0, depth = 4, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -61,7 +68,7 @@ public class MinMax {
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
 
-    static {
+    public MinMax() {
         Board.setMoves();
         Board.setNeighbours();
     }
@@ -97,7 +104,7 @@ public class MinMax {
 
     private Move findBestMove(final int player, final int level) {
         long toTake = MIN_VALUE, toGive = MAX_VALUE;
-        long max = MIN_VALUE;
+        int max = MIN_VALUE;
         Move bestMove = startConfigs[0].move;
         try {
             for (final BoardMove possibleConfig : startConfigs) {
@@ -405,7 +412,7 @@ class Board {
         return new Board(board, moves, choices).play(move);
     }
 
-    Board play(final Move move) {
+    private Board play(final Move move) {
         if (board[move.x][move.y][0] == MinMax.flip(move.player)) {
             final int opponent = MinMax.flip(move.player);
             int index;

@@ -1,6 +1,8 @@
 import main.java.MinMax;
 import org.junit.Test;
 
+import java.util.concurrent.CompletableFuture;
+
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
@@ -30,7 +32,7 @@ public class ChainReactionTest {
                 {{2, 1}, {2, 1}, {1, 1}, {2, 1}, {0, 0}},
                 {{0, 0}, {1, 1}, {0, 0}, {1, 1}, {1, 2}},
                 {{1, 1}, {1, 2}, {1, 2}, {1, 2}, {1, 1}}};
-        MinMax.TIME_OUT = 910;
+        MinMax.TIME_OUT = 1210;
         MinMax minMax = new MinMax();
         //minMax.setTest(true);
         String actual = minMax.iterativeSearchForBestMove(board, 1);
@@ -47,7 +49,7 @@ public class ChainReactionTest {
                 {{1, 1}, {1, 3}, {1, 1}, {2, 1}, {1, 2}},
                 {{1, 2}, {0, 0}, {2, 3}, {0, 0}, {0, 0}},
                 {{1, 1}, {2, 2}, {0, 0}, {2, 1}, {1, 1}}};
-        MinMax.TIME_OUT = 910;
+        MinMax.TIME_OUT = 1210;
         MinMax minMax = new MinMax();
         //minMax.setTest(true);
         String actual = minMax.iterativeSearchForBestMove(board, 1);
@@ -108,7 +110,7 @@ public class ChainReactionTest {
                 {{2, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
                 {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {2, 2}},
                 {{0, 0}, {0, 0}, {0, 0}, {2, 2}, {0, 0}}};
-        MinMax.TIME_OUT=910;
+        MinMax.TIME_OUT = 910;
         MinMax minMax = new MinMax();
 //        minMax.setTest(true);
         String actual = minMax.iterativeSearchForBestMove(board, 1);
