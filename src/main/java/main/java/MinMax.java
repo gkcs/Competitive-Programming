@@ -17,6 +17,8 @@ import java.util.function.Function;
  * Caching could be used for this. Although I am wary of it. A cache based on move number should be useful through.
  * The concept of a killer heuristic seems useful. Will keep two killer move on each depth.
  * <p>
+ * NEVER TRY GARBAGE COLLECTION OR CACHING FOR THESE PROGRAMS.  RIDICULOUSLY COMPLICATED DEBUGGING + ALMOST NO
+ * PERFORMANCE IMPROVEMENT.
  * The heuristic should be better.
  */
 class ChainReaction {
@@ -56,7 +58,8 @@ public class MinMax {
     private final long startTime = System.currentTimeMillis();
     private boolean test;
     private BoardMove[] startConfigs;
-    private final Move[] killerMoves = new Move[MAX_DEPTH];
+    private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
+    private final int[][] efficiency = new int[MAX_DEPTH][2];
 
     static {
         Board.setMoves();
@@ -76,10 +79,10 @@ public class MinMax {
         }
         startConfigs = new BoardMove[board.choices[player] + board.choices[0]];
         for (int i = 0; i < board.choices[0]; i++) {
-            startConfigs[i] = new BoardMove(board.moves[0][i], board, player);
+            startConfigs[i] = new BoardMove(board.moves[0][i], board, player, 0);
         }
         for (int i = 0; i < board.choices[player]; i++) {
-            startConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
+            startConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player, 0);
         }
         Arrays.sort(startConfigs);
         Move bestMove = startConfigs[0].move;
@@ -122,8 +125,42 @@ public class MinMax {
                     }
                 }
                 if (toTake >= toGive) {
-                    killerMoves[level] = possibleConfig.move;
+                    if (possibleConfig.killer) {
+                        if (killerMoves[level][0] == possibleConfig.move) {
+                            efficiency[level][0]++;
+                        } else {
+                            efficiency[level][1]++;
+                            if (efficiency[level][0] < efficiency[level][1]) {
+                                final Move temp = killerMoves[level][0];
+                                killerMoves[level][0] = killerMoves[level][1];
+                                killerMoves[level][1] = temp;
+                            }
+                        }
+                    } else {
+                        if (killerMoves[level][0] == null) {
+                            killerMoves[level][0] = possibleConfig.move;
+                            efficiency[level][0] = 1;
+                        } else if (killerMoves[level][1] == null) {
+                            killerMoves[level][1] = possibleConfig.move;
+                            efficiency[level][1] = 1;
+                        }
+                    }
                     break;
+                } else if (possibleConfig.killer) {
+                    if (killerMoves[level][0] == possibleConfig.move) {
+                        efficiency[level][0]--;
+                    } else {
+                        efficiency[level][1]--;
+                    }
+                    if (efficiency[level][0] < efficiency[level][1]) {
+                        final Move temp = killerMoves[level][0];
+                        killerMoves[level][0] = killerMoves[level][1];
+                        killerMoves[level][1] = temp;
+                    }
+                    if (efficiency[level][1] <= 0) {
+                        efficiency[level][1] = 0;
+                        killerMoves[level][1] = null;
+                    }
                 }
             }
         } catch (TimeoutException e) {
@@ -153,17 +190,19 @@ public class MinMax {
         } else {
             final BoardMove[] configurations = new BoardMove[board.choices[player] + board.choices[0]];
             for (int i = 0; i < board.choices[0]; i++) {
-                configurations[i] = new BoardMove(board.moves[0][i], board, player);
+                configurations[i] = new BoardMove(board.moves[0][i], board, player, level);
             }
             for (int i = 0; i < board.choices[player]; i++) {
-                configurations[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player);
+                configurations[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player, level);
             }
             Arrays.sort(configurations);
-            for (final BoardMove possibleConfig : configurations) {
+            int index = 0;
+            for (; index < configurations.length; index++) {
+                BoardMove possibleConfig = configurations[index];
                 computations++;
                 final int moveValue = evaluate(possibleConfig.board,
                                                flip(player),
-                                               level - 1,
+                                               level + 1,
                                                toTake,
                                                toGive,
                                                -possibleConfig.strength);
@@ -184,28 +223,77 @@ public class MinMax {
                 }
                 if (toTake >= toGive) {
                     max = moveValue;
-                    killerMoves[level] = possibleConfig.move;
+                    if (possibleConfig.killer) {
+                        if (killerMoves[level][0] == possibleConfig.move) {
+                            efficiency[level][0]++;
+                        } else {
+                            efficiency[level][1]++;
+                            if (efficiency[level][0] < efficiency[level][1]) {
+                                final Move temp = killerMoves[level][0];
+                                killerMoves[level][0] = killerMoves[level][1];
+                                killerMoves[level][1] = temp;
+                            }
+                        }
+                    } else {
+                        if (killerMoves[level][0] == null) {
+                            killerMoves[level][0] = possibleConfig.move;
+                            efficiency[level][0] = 1;
+                        } else if (killerMoves[level][1] == null) {
+                            killerMoves[level][1] = possibleConfig.move;
+                            efficiency[level][1] = 1;
+                        }
+                    }
                     break;
+                } else if (possibleConfig.killer) {
+                    if (killerMoves[level][0] == possibleConfig.move) {
+                        efficiency[level][0]--;
+                    } else {
+                        efficiency[level][1]--;
+                    }
+                    if (efficiency[level][0] < efficiency[level][1]) {
+                        final Move temp = killerMoves[level][0];
+                        killerMoves[level][0] = killerMoves[level][1];
+                        killerMoves[level][1] = temp;
+                    }
+                    if (efficiency[level][1] <= 0) {
+                        efficiency[level][1] = 0;
+                        killerMoves[level][1] = null;
+                    }
                 }
             }
         }
         return -max;
     }
 
-    private static class BoardMove implements Comparable<BoardMove> {
+    private class BoardMove implements Comparable<BoardMove> {
         final Move move;
         final Board board;
         int strength;
+        final boolean killer;
 
-        private BoardMove(final Move move, final Board board, final int player) {
+        private BoardMove(final Move move, final Board board, final int player, final int level) {
             final Move moveToBeMade = Board.ALL_MOVES[player][move.x][move.y];
             this.board = board.makeMove(moveToBeMade);
-            this.strength = this.board.heuristicValue(player);
+            if (killerMoves[level][0] == moveToBeMade) {
+                killer = true;
+            } else if (killerMoves[level][1] == moveToBeMade) {
+                killer = true;
+            } else {
+                this.strength = this.board.heuristicValue(player);
+                killer = false;
+            }
             this.move = moveToBeMade;
         }
 
         @Override
         public int compareTo(BoardMove o) {
+            if (killer && o.killer) {
+                return 0;
+            } else if (!killer && o.killer) {
+                return +1;
+            } else if (killer) {
+                return -1;
+            }
             return o.strength - strength;
         }
 
@@ -216,7 +304,6 @@ public class MinMax {
                     ", board=" + board +
                     '}';
         }
-
     }
 
     static int flip(final int player) {
@@ -388,7 +475,6 @@ class Board {
     int heuristicValue(final int player) {
         final int opponent = MinMax.flip(player);
         int orbs = choices[player] - choices[opponent] / (choices[player] + choices[opponent]);
-        int stability = 0;
         int mobility = (choices[player] - choices[opponent]) / (choices[player] + choices[opponent] + (choices[0] << 1));
         int periphery = 0;
         int explosivity = 0;
@@ -412,7 +498,7 @@ class Board {
                 --explosivity; //Update to find all nearby explosives
             }
         }
-        return orbs + stability + mobility + periphery + explosivity;
+        return orbs + mobility + explosivity + periphery;
     }
 
     private int[][][] getCopy(final int board[][][]) {
