@@ -58,7 +58,7 @@ class ChainReaction {
  */
 public class MinMax {
     private static final int MAX_DEPTH = 60;
-    public static int TIME_OUT = 1200;
+    public static int TIME_OUT = 1180;
     public int computations = 0, depth = 4, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -286,7 +286,7 @@ public class MinMax {
             } else if (killerMoves[level][1] == moveToBeMade) {
                 killer = true;
             } else {
-                this.strength = this.board.heuristicValue(player);
+                this.strength = this.board.heuristicValue(player, board.moveNumber);
                 killer = false;
             }
             this.move = moveToBeMade;
@@ -359,6 +359,7 @@ class Board {
     final Move[][] moves = new Move[COLORS][BOARD_SIZE * BOARD_SIZE];
     final int[] choices = new int[COLORS];
     static final Move ALL_MOVES[][][] = new Move[COLORS][BOARD_SIZE][BOARD_SIZE];
+    int moveNumber;
 
     Board(final int[][][] board) {
         for (int i = 0; i < BOARD_SIZE; i++) {
@@ -369,7 +370,8 @@ class Board {
         this.board = getCopy(board);
     }
 
-    Board(final int[][][] board, final Move[][] moves, final int choices[]) {
+    Board(final int[][][] board, final Move[][] moves, final int choices[], int moveNumber) {
+        this.moveNumber = moveNumber;
         System.arraycopy(choices, 0, this.choices, 0, choices.length);
         for (int i = 0; i < COLORS; i++) {
             System.arraycopy(moves[i], 0, this.moves[i], 0, choices[i]);
@@ -409,7 +411,7 @@ class Board {
     }
 
     Board makeMove(final Move move) {
-        return new Board(board, moves, choices).play(move);
+        return new Board(board, moves, choices, moveNumber + 1).play(move);
     }
 
     private Board play(final Move move) {
@@ -424,7 +426,6 @@ class Board {
             moves[opponent][index] = moves[opponent][choices[opponent] - 1];
             choices[opponent]--;
             moves[move.player][choices[move.player]++] = ALL_MOVES[move.player][move.x][move.y];
-            //handle other players deletion
         } else if (board[move.x][move.y][0] == 0) {
             int index;
             for (index = choices[0] - 1; index >= 0; index--) {
@@ -479,33 +480,56 @@ class Board {
         return Arrays.deepToString(board);
     }
 
-    int heuristicValue(final int player) {
+    int heuristicValue(final int player, final int move) {
         final int opponent = MinMax.flip(player);
         int orbs = choices[player] - choices[opponent] / (choices[player] + choices[opponent]);
         int mobility = (choices[player] - choices[opponent]) / (choices[player] + choices[opponent] + (choices[0] << 1));
         int periphery = 0;
         int explosivity = 0;
+        int visited = 0;
         for (int m = 0; m < choices[player]; m++) {
             final int i = moves[player][m].x;
             final int j = moves[player][m].y;
             if (neighbours[i][j].length < 4) {
-                periphery += -neighbours[i][j].length + 5;
+                periphery += ((-neighbours[i][j].length + 5) * 2) / 3;
             }
             if (board[i][j][1] == neighbours[i][j].length - 1) {
-                ++explosivity; //Update to find all nearby explosives
+                if ((visited & (1 << (i * BOARD_SIZE + j))) != 0) {
+                    visited |= 1 << (i * BOARD_SIZE + j);
+                    final Board temp = makeMove(ALL_MOVES[player][i][j]);
+                    for (int x = 0; x < BOARD_SIZE; x++) {
+                        for (int y = 0; y < BOARD_SIZE; y++) {
+                            if (temp.board[x][y][0] != board[x][y][0] || temp.board[x][y][1] != board[x][y][1]) {
+                                visited |= 1 << (x * BOARD_SIZE + y);
+                            }
+                        }
+                    }
+                    explosivity += (temp.choices[player] - temp.choices[opponent] / (temp.choices[player] + temp.choices[opponent]));
+                }
             }
         }
         for (int m = 0; m < choices[opponent]; m++) {
             final int i = moves[opponent][m].x;
             final int j = moves[opponent][m].y;
             if (neighbours[i][j].length < 4) {
-                periphery -= -neighbours[i][j].length + 5;
+                periphery += ((-neighbours[i][j].length + 5) * 2) / 3;
             }
             if (board[i][j][1] == neighbours[i][j].length - 1) {
-                --explosivity; //Update to find all nearby explosives
+                if ((visited & (1 << (i * BOARD_SIZE + j))) != 0) {
+                    visited |= 1 << (i * BOARD_SIZE + j);
+                    final Board temp = makeMove(ALL_MOVES[opponent][i][j]);
+                    for (int x = 0; x < BOARD_SIZE; x++) {
+                        for (int y = 0; y < BOARD_SIZE; y++) {
+                            if (temp.board[x][y][0] != board[x][y][0] || temp.board[x][y][1] != board[x][y][1]) {
+                                visited |= 1 << (x * BOARD_SIZE + y);
+                            }
+                        }
+                    }
+                    explosivity += (temp.choices[player] - temp.choices[opponent] / (temp.choices[player] + temp.choices[opponent]));
+                }
             }
         }
-        return orbs + mobility + explosivity + periphery;
+        return ((-2 * move) / 70 + 2) * (orbs + mobility) + explosivity + (periphery >> 1);
     }
 
     private int[][][] getCopy(final int board[][][]) {
@@ -531,6 +555,6 @@ class Board {
     }
 
     Board getCopy() {
-        return new Board(board, moves, choices);
+        return new Board(board, moves, choices, moveNumber);
     }
 }

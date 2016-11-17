@@ -49,7 +49,7 @@ public class ChainReactionTest {
                 {{1, 1}, {1, 3}, {1, 1}, {2, 1}, {1, 2}},
                 {{1, 2}, {0, 0}, {2, 3}, {0, 0}, {0, 0}},
                 {{1, 1}, {2, 2}, {0, 0}, {2, 1}, {1, 1}}};
-        MinMax.TIME_OUT = 1210;
+        MinMax.TIME_OUT = 1180;
         MinMax minMax = new MinMax();
         //minMax.setTest(true);
         String actual = minMax.iterativeSearchForBestMove(board, 1);
