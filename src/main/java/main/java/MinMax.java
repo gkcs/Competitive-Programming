@@ -10,23 +10,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 /**
- * Use the first few searches to order the moves. At any given point of time, return the best move as it is the best
- * searched so far depth =(height/height+1).
- * <p>
- * <p>
- * Caching could be used for this. Although I am wary of it. A cache based on move number should be useful through.
- * The concept of a killer heuristic seems useful. Will keep two killer move on each depth.
- * <p>
- * NEVER TRY GARBAGE COLLECTION OR CACHING FOR THESE PROGRAMS.  RIDICULOUSLY COMPLICATED DEBUGGING + ALMOST NO
- * PERFORMANCE IMPROVEMENT.
- * The heuristic should be better.
- * <p>
- * Next stop: Multithreading. As long as they have more than one processor, the program efficiency will shoot up. The
- * top part of the program should be multi threaded, as it offers maximum gains for minimum effort.
- * Some considerations here are, will the program have enough juice for higher computations? Will alpha beta in multi
- * threaded environment be as efficient as in sequential. If gains for 20% are given, I am good. I can assume that
- * the first few moves will cut off the rest. Which means some sort of mechanism for updating overall scores has to
- * exist.
+ * A game playing bot for Chain Reaction. Takes as input an array of {@link Board#BOARD_SIZE}*{@link Board#BOARD_SIZE}.
+ * Each cell is represented by (ORB_COUNT,PLAYER). Takes time = {@link MinMax#TIME_OUT} to return an answer.
+ *
+ * @author Gaurav Sen
  */
 class ChainReaction {
     public static void main(String[] args) throws IOException {
@@ -48,13 +35,7 @@ class ChainReaction {
 }
 
 /**
- * A DFS results in too many resources consumed for the first possibility. A breadth first search is a better choice
- * selection strategy. A queue of positions is maintained. Each position has a corresponding parent position, which
- * helps move up the tree when the current position is evaluated.
- * <p>
- * A better approach will be iterative deepening. Local search around an 'interesting' area is feasible in these
- * scenarios.
- * Alpha Beta pruning is necessary so that we do not blindly follow whatever we see.
+ * Contains a lot of objects for metrics. Should ideally be separated from those responsibilities.
  */
 public class MinMax {
     private static final int MAX_DEPTH = 60;
@@ -64,7 +45,7 @@ public class MinMax {
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
     private boolean test;
-    private BoardMove[] startConfigs;
+    private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
 
@@ -76,20 +57,23 @@ public class MinMax {
     private boolean timeOut;
 
     /**
-     * Moves should be ordered as per the last best sequence. On the final iteration, when an exception is thrown,
-     * the best move will be propagated upwards from the {link #findBestMove} method.
+     * Iterative deepening is implemented for flexible depth search. Also, it allows us to rearrange all moves as per
+     * (known) optimal ordering after each iteration. This is important because alpha-beta
+     * performs best when given a good move order.
+     * On the final iteration, when an exception is thrown, the best move will be propagated upwards from the
+     * {@link #findBestMove} method.
      */
     public String iterativeSearchForBestMove(final int[][][] game, final int player) {
         final Board board = new Board(game);
         if (board.choices[player] + board.choices[0] == 0) {
             throw new RuntimeException("No possible moves");
         }
-        startConfigs = new BoardMove[board.choices[player] + board.choices[0]];
+        startConfigs = new Configuration[board.choices[player] + board.choices[0]];
         for (int i = 0; i < board.choices[0]; i++) {
-            startConfigs[i] = new BoardMove(board.moves[0][i], board, player, 0);
+            startConfigs[i] = new Configuration(board.moves[0][i], board, player, 0);
         }
         for (int i = 0; i < board.choices[player]; i++) {
-            startConfigs[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player, 0);
+            startConfigs[i + board.choices[0]] = new Configuration(board.moves[player][i], board, player, 0);
         }
         Arrays.sort(startConfigs);
         Move bestMove = startConfigs[0].move;
@@ -102,12 +86,19 @@ public class MinMax {
         return bestMove.describe();
     }
 
+    /**
+     * Returns the best known move till now for the entire board.
+     *
+     * @param player Player to play
+     * @param level  Current Level
+     * @return Best move found
+     */
     private Move findBestMove(final int player, final int level) {
         long toTake = MIN_VALUE, toGive = MAX_VALUE;
         int max = MIN_VALUE;
         Move bestMove = startConfigs[0].move;
         try {
-            for (final BoardMove possibleConfig : startConfigs) {
+            for (final Configuration possibleConfig : startConfigs) {
                 final int moveValue = evaluate(possibleConfig.board.getCopy(),
                                                flip(player),
                                                level,
@@ -177,6 +168,18 @@ public class MinMax {
         return bestMove;
     }
 
+    /**
+     * Min Max tree generator and traverse.  Implements Alpha Beta along with the killer heuristic.
+     *
+     * @param board          Input Board. All branches in the Min Max Tree from this node are possible moves from this board.
+     * @param player         Player making the move.
+     * @param level          Depth on which this tree is now.
+     * @param a              Alpha
+     * @param b              Beta
+     * @param heuristicValue The heuristic value of board
+     * @return The value of current board position
+     * @throws TimeoutException if it runs out of time.
+     */
     private int evaluate(final Board board,
                          final int player,
                          final int level,
@@ -195,17 +198,17 @@ public class MinMax {
         } else if (level >= depth) {
             max = heuristicValue;
         } else {
-            final BoardMove[] configurations = new BoardMove[board.choices[player] + board.choices[0]];
+            final Configuration[] configurations = new Configuration[board.choices[player] + board.choices[0]];
             for (int i = 0; i < board.choices[0]; i++) {
-                configurations[i] = new BoardMove(board.moves[0][i], board, player, level);
+                configurations[i] = new Configuration(board.moves[0][i], board, player, level);
             }
             for (int i = 0; i < board.choices[player]; i++) {
-                configurations[i + board.choices[0]] = new BoardMove(board.moves[player][i], board, player, level);
+                configurations[i + board.choices[0]] = new Configuration(board.moves[player][i], board, player, level);
             }
             Arrays.sort(configurations);
             int index = 0;
             for (; index < configurations.length; index++) {
-                BoardMove possibleConfig = configurations[index];
+                Configuration possibleConfig = configurations[index];
                 computations++;
                 final int moveValue = evaluate(possibleConfig.board,
                                                flip(player),
@@ -272,13 +275,22 @@ public class MinMax {
         return -max;
     }
 
-    private class BoardMove implements Comparable<BoardMove> {
+    /**
+     * A board and move combination.
+     */
+    private class Configuration implements Comparable<Configuration> {
         final Move move;
         final Board board;
+        /**
+         * Represents how good the move is for the player making the move
+         */
         int strength;
+        /**
+         * True only if the move is considered a 'killer' move as per the killer heuristic.
+         */
         final boolean killer;
 
-        private BoardMove(final Move move, final Board board, final int player, final int level) {
+        private Configuration(final Move move, final Board board, final int player, final int level) {
             final Move moveToBeMade = Board.ALL_MOVES[player][move.x][move.y];
             this.board = board.makeMove(moveToBeMade);
             if (killerMoves[level][0] == moveToBeMade) {
@@ -286,14 +298,14 @@ public class MinMax {
             } else if (killerMoves[level][1] == moveToBeMade) {
                 killer = true;
             } else {
-                this.strength = this.board.heuristicValue(player, board.moveNumber);
+                this.strength = this.board.heuristicValue(player);
                 killer = false;
             }
             this.move = moveToBeMade;
         }
 
         @Override
-        public int compareTo(BoardMove o) {
+        public int compareTo(Configuration o) {
             if (killer && o.killer) {
                 return 0;
             } else if (!killer && o.killer) {
@@ -306,7 +318,7 @@ public class MinMax {
 
         @Override
         public String toString() {
-            return "BoardMove{" +
+            return "Configuration{" +
                     "move=" + move +
                     ", board=" + board +
                     '}';
@@ -322,6 +334,9 @@ public class MinMax {
     }
 }
 
+/**
+ * Represents a move on the board.
+ */
 class Move {
     final int x, y, player;
 
@@ -346,21 +361,63 @@ class Move {
 }
 
 /**
- * The board contains a list of all of its parents. Each time someone asks us to undo the board, we fall back to a
- * copy of the board in the previous state. Whenever a state changing move is made on the board, the current state is
- * stored as a parent in memory, and another immutable Board is returned.
+ * A representation of the board as bit array would be better. Some analysis states that only 7 configurations are
+ * possible for each cell:
+ * <p>
+ * <table>
+ * <th>
+ * <td>
+ * Config</td>
+ * <td>Orbs
+ * </td>
+ * <td>Player
+ * </td>
+ * </th>
+ * <tr>
+ * <td>0</td><td>0</td><td>0</td>
+ * </tr>
+ * <tr>
+ * <td>1</td><td>1</td><td>1</td>
+ * </tr>
+ * <tr>
+ * <td>2</td><td>2</td><td>1</td>
+ * </tr>
+ * <tr>
+ * <td>3</td><td>3</td><td>1</td>
+ * </tr>
+ * <tr>
+ * <td>4</td><td>1</td><td>2</td>
+ * </tr>
+ * <tr>
+ * <td>5</td><td>2</td><td>2</td>
+ * </tr>
+ * <tr>
+ * <td>6</td><td>3</td><td>2</td>
+ * </tr>
+ * </table>
+ * <p>
+ * So each board cell can be represented by log(7) base 2 => 3 bits. As there are 25 cells in a 5*5 board, each board
+ * should require just 75 bits, or three integers.
+ * However, due to performance and complexity considerations, I believe 4 bits per position is better. 2 for player
+ * info and 2 for orb count. The practical reality was that none of these considerations worked well enough to reach
+ * the final submission. However, if the bugs were fewer and I had more time, this was a good place to work on
+ * efficiency.
  */
 class Board {
     Function<int[], Integer> heuristicEval = (vals) -> Arrays.stream(vals).sum();
     int[][][] board;
     private static final int BOARD_SIZE = 5;
     private static final int neighbours[][][] = new int[BOARD_SIZE][BOARD_SIZE][];
-    private static final int COLORS = 3;
-    final Move[][] moves = new Move[COLORS][BOARD_SIZE * BOARD_SIZE];
-    final int[] choices = new int[COLORS];
-    static final Move ALL_MOVES[][][] = new Move[COLORS][BOARD_SIZE][BOARD_SIZE];
-    int moveNumber;
+    private static final int PLAYERS = 3;
+    final Move[][] moves = new Move[PLAYERS][BOARD_SIZE * BOARD_SIZE];
+    final int[] choices = new int[PLAYERS];
+    static final Move ALL_MOVES[][][] = new Move[PLAYERS][BOARD_SIZE][BOARD_SIZE];
 
+    /**
+     * Creates a new board using the given board array to initialize move lists and counters.
+     *
+     * @param board
+     */
     Board(final int[][][] board) {
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
@@ -370,15 +427,25 @@ class Board {
         this.board = getCopy(board);
     }
 
-    Board(final int[][][] board, final Move[][] moves, final int choices[], int moveNumber) {
-        this.moveNumber = moveNumber;
+    /**
+     * Completely copies a board onto another.
+     *
+     * @param board   Original Board
+     * @param moves   Original Move list
+     * @param choices Original Player Cell counter
+     */
+    Board(final int[][][] board, final Move[][] moves, final int choices[]) {
         System.arraycopy(choices, 0, this.choices, 0, choices.length);
-        for (int i = 0; i < COLORS; i++) {
+        for (int i = 0; i < PLAYERS; i++) {
             System.arraycopy(moves[i], 0, this.moves[i], 0, choices[i]);
         }
         this.board = getCopy(board);
     }
 
+    /**
+     * Sets all the neighbours of each possible cell in the chain reaction board. This method runs only once for each
+     * game.
+     */
     static void setNeighbours() {
         for (int i = 0; i < BOARD_SIZE; i++) {
             for (int j = 0; j < BOARD_SIZE; j++) {
@@ -410,12 +477,26 @@ class Board {
         }
     }
 
+    /**
+     * Make a move returning a new board. Method <b>is</b> idempotent.
+     *
+     * @param move Move to be played
+     * @return New board with move played.
+     */
     Board makeMove(final Move move) {
-        return new Board(board, moves, choices, moveNumber + 1).play(move);
+        return new Board(board, moves, choices).play(move);
     }
 
+    /**
+     * Plays a move on the current board, updating the state and respective variables. If it looks complicated, thats
+     * because it is.
+     *
+     * @param move The move played on the board.
+     * @return The changed board. This operation is <b>NOT</b> idempotent.
+     */
     private Board play(final Move move) {
         if (board[move.x][move.y][0] == MinMax.flip(move.player)) {
+            //We just captured an opponents block. Updating move list and counters
             final int opponent = MinMax.flip(move.player);
             int index;
             for (index = choices[opponent] - 1; index >= 0; index--) {
@@ -427,6 +508,7 @@ class Board {
             choices[opponent]--;
             moves[move.player][choices[move.player]++] = ALL_MOVES[move.player][move.x][move.y];
         } else if (board[move.x][move.y][0] == 0) {
+            //We just captured an an empty block. Updating move list and counters
             int index;
             for (index = choices[0] - 1; index >= 0; index--) {
                 if (moves[0][index].x == move.x && moves[0][index].y == move.y) {
@@ -437,14 +519,19 @@ class Board {
             choices[0]--;
             moves[move.player][choices[move.player]++] = ALL_MOVES[move.player][move.x][move.y];
         }
+        //Else we played in our own cell. No updates needed, except to increment cell count as always
         board[move.x][move.y][0] = move.player;
         board[move.x][move.y][1]++;
         if (terminalValue() != null) {
             return this;
         }
+        /*
+         * Checks if an explosion needed.
+         */
         if (neighbours[move.x][move.y].length <= board[move.x][move.y][1]) {
             board[move.x][move.y][1] = board[move.x][move.y][1] - neighbours[move.x][move.y].length;
             if (board[move.x][move.y][1] == 0) {
+                //Set he cell to blank and update move lists
                 board[move.x][move.y][0] = 0;
                 int index;
                 for (index = choices[move.player] - 1; index >= 0; index--) {
@@ -461,12 +548,25 @@ class Board {
         return this;
     }
 
+    /**
+     * Explode the cell at the specified position. All neighbouring cells are acted upon as if a move was played on
+     * them.
+     *
+     * @param x      X coordinate
+     * @param y      Y coordinate
+     * @param player Player who caused the explosion
+     */
     private void explode(final int x, final int y, final int player) {
         for (final int neighbour : neighbours[x][y]) {
             play(ALL_MOVES[player][neighbour / BOARD_SIZE][neighbour % BOARD_SIZE]);
         }
     }
 
+    /**
+     * Used to check if the given board position is terminal.
+     *
+     * @return An integer value if the position is a terminal position. Else return null.
+     */
     Integer terminalValue() {
         if (((choices[1] | choices[2]) > 1) && (choices[1] == 0 || choices[2] == 0)) {
             return choices[1] == 0 ? MinMax.MIN_VALUE : MinMax.MAX_VALUE;
@@ -480,61 +580,44 @@ class Board {
         return Arrays.deepToString(board);
     }
 
-    int heuristicValue(final int player, final int move) {
+    /**
+     * It takes the difference in number of cells and add the difference in explosives.
+     *
+     * @param player Player to move
+     * @return Heuristic value of the board
+     */
+
+    int heuristicValue(final int player) {
         final int opponent = MinMax.flip(player);
-        int orbs = choices[player] - choices[opponent] / (choices[player] + choices[opponent]);
-        int mobility = (choices[player] - choices[opponent]) / (choices[player] + choices[opponent] + (choices[0] << 1));
-        int periphery = 0;
-        int explosivity = 0;
-        int visited = 0;
+        int orbs = choices[player] - choices[opponent];
+        int explosives = 0;
         for (int m = 0; m < choices[player]; m++) {
             final int i = moves[player][m].x;
             final int j = moves[player][m].y;
-            if (neighbours[i][j].length < 4) {
-                periphery += ((-neighbours[i][j].length + 5) * 2) / 3;
-            }
             if (board[i][j][1] == neighbours[i][j].length - 1) {
-                if ((visited & (1 << (i * BOARD_SIZE + j))) != 0) {
-                    visited |= 1 << (i * BOARD_SIZE + j);
-                    final Board temp = makeMove(ALL_MOVES[player][i][j]);
-                    for (int x = 0; x < BOARD_SIZE; x++) {
-                        for (int y = 0; y < BOARD_SIZE; y++) {
-                            if (temp.board[x][y][0] != board[x][y][0] || temp.board[x][y][1] != board[x][y][1]) {
-                                visited |= 1 << (x * BOARD_SIZE + y);
-                            }
-                        }
-                    }
-                    explosivity += (temp.choices[player] - temp.choices[opponent] / (temp.choices[player] + temp.choices[opponent]));
-                }
+                explosives++;
             }
         }
         for (int m = 0; m < choices[opponent]; m++) {
             final int i = moves[opponent][m].x;
             final int j = moves[opponent][m].y;
-            if (neighbours[i][j].length < 4) {
-                periphery += ((-neighbours[i][j].length + 5) * 2) / 3;
-            }
             if (board[i][j][1] == neighbours[i][j].length - 1) {
-                if ((visited & (1 << (i * BOARD_SIZE + j))) != 0) {
-                    visited |= 1 << (i * BOARD_SIZE + j);
-                    final Board temp = makeMove(ALL_MOVES[opponent][i][j]);
-                    for (int x = 0; x < BOARD_SIZE; x++) {
-                        for (int y = 0; y < BOARD_SIZE; y++) {
-                            if (temp.board[x][y][0] != board[x][y][0] || temp.board[x][y][1] != board[x][y][1]) {
-                                visited |= 1 << (x * BOARD_SIZE + y);
-                            }
-                        }
-                    }
-                    explosivity += (temp.choices[player] - temp.choices[opponent] / (temp.choices[player] + temp.choices[opponent]));
-                }
+                explosives--;
             }
         }
-        return ((-2 * move) / 70 + 2) * (orbs + mobility) + explosivity + (periphery >> 1);
+        return orbs + explosives;
     }
+
+    /**
+     * Returns a copy of the board state. Skips copying the zeros of the original.
+     *
+     * @param board The original board representation
+     * @return A new board array having all the copied elements
+     */
 
     private int[][][] getCopy(final int board[][][]) {
         final int copyBoard[][][] = new int[board.length][board.length][2];
-        for (int k = 1; k < COLORS; k++) {
+        for (int k = 1; k < PLAYERS; k++) {
             for (int l = 0; l < choices[k]; l++) {
                 final int i = moves[k][l].x;
                 final int j = moves[k][l].y;
@@ -544,8 +627,11 @@ class Board {
         return copyBoard;
     }
 
+    /**
+     * Initializes the moves array with static objects. These are the only move objects created in the entire game.
+     */
     static void setMoves() {
-        for (int player = 0; player < COLORS; player++) {
+        for (int player = 0; player < PLAYERS; player++) {
             for (int i = 0; i < BOARD_SIZE; i++) {
                 for (int j = 0; j < BOARD_SIZE; j++) {
                     ALL_MOVES[player][i][j] = new Move(i, j, player);
@@ -554,7 +640,12 @@ class Board {
         }
     }
 
+    /**
+     * Necessary to keep the preserve the state of the board when searching in the min-max tree.
+     *
+     * @return A copy of the board. The copy refers to none of the mutable objects being referred to by the original.
+     */
     Board getCopy() {
-        return new Board(board, moves, choices, moveNumber);
+        return new Board(board, moves, choices);
     }
 }
