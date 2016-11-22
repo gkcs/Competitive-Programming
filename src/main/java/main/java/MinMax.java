@@ -363,39 +363,23 @@ class Move {
 /**
  * A representation of the board as bit array would be better. Some analysis states that only 7 configurations are
  * possible for each cell:
- * <p>
- * <table>
- * <th>
- * <td>
- * Config</td>
- * <td>Orbs
- * </td>
- * <td>Player
- * </td>
- * </th>
- * <tr>
- * <td>0</td><td>0</td><td>0</td>
- * </tr>
- * <tr>
- * <td>1</td><td>1</td><td>1</td>
- * </tr>
- * <tr>
- * <td>2</td><td>2</td><td>1</td>
- * </tr>
- * <tr>
- * <td>3</td><td>3</td><td>1</td>
- * </tr>
- * <tr>
- * <td>4</td><td>1</td><td>2</td>
- * </tr>
- * <tr>
- * <td>5</td><td>2</td><td>2</td>
- * </tr>
- * <tr>
- * <td>6</td><td>3</td><td>2</td>
- * </tr>
- * </table>
- * <p>
+ *
+ * Config Orbs Player
+ *
+ *      0    0      0
+ *
+ *      1    1      1
+ *
+ *      2    2      1
+ *
+ *      3    3      1
+ *
+ *      4    1      2
+ *
+ *      5    2      2
+ *
+ *      6    3      2
+ *      
  * So each board cell can be represented by log(7) base 2 => 3 bits. As there are 25 cells in a 5*5 board, each board
  * should require just 75 bits, or three integers.
  * However, due to performance and complexity considerations, I believe 4 bits per position is better. 2 for player
