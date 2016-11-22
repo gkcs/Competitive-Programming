@@ -53,13 +53,17 @@ public class SqrtDecomposition {
         }
     }
 
+    private final int freq[] = new int[powers.length];
+
     public long query(int end) {
         end--;
         final int blockIndex = end / sqrt;
-        final int freq[] = new int[powers.length];
         final int queue[] = new int[sqrt];
         int count = 0;
         final int endIndex = end % sqrt;
+        for (int i = 0; i <= endIndex; i++) {
+            freq[a[blockIndex * sqrt + i]] = 0;
+        }
         for (int i = 0; i <= endIndex; i++) {
             if (freq[a[blockIndex * sqrt + i]] == 0) {
                 queue[count++] = a[blockIndex * sqrt + i];
