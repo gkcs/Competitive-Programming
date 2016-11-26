@@ -7,17 +7,6 @@ import java.util.Random;
 import static org.junit.Assert.assertEquals;
 
 public class MainTest {
-    /*
-    8 8
-    1 3 6
-    2 2
-    2 8
-    2 7
-    2 6
-    1 1 6
-    2 6
-    2 1
-     */
     @Test
     public void test() {
         SqrtDecomposition decomposition = new SqrtDecomposition(8);
@@ -66,4 +55,16 @@ public class MainTest {
             }
         }
     }
+
+
+/*
+4 7
+1 0 3
+0 1 2
+1 0 1
+1 0 0
+0 0 3
+1 0 3
+1 3 3
+ */
 }

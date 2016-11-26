@@ -23,7 +23,7 @@ public class SqrtDecomposition {
         this.blocks = new long[sqrt];
         populatePowers();
         Arrays.fill(blocks, 1);
-        this.frequencies = new int[sqrt][powers.length];
+        this.frequencies = new int[sqrt][202500];
         for (int i = 0; i < sqrt; i++) {
             final int index = i * sqrt;
             frequencies[i][0] = index + sqrt;
@@ -53,12 +53,12 @@ public class SqrtDecomposition {
         }
     }
 
-    private final int freq[] = new int[powers.length];
+    private final int freq[] = new int[202500];
 
     public long query(int end) {
         end--;
         final int blockIndex = end / sqrt;
-        final int queue[] = new int[sqrt];
+        final int set[] = new int[sqrt];
         int count = 0;
         final int endIndex = end % sqrt;
         for (int i = 0; i <= endIndex; i++) {
@@ -66,17 +66,17 @@ public class SqrtDecomposition {
         }
         for (int i = 0; i <= endIndex; i++) {
             if (freq[a[blockIndex * sqrt + i]] == 0) {
-                queue[count++] = a[blockIndex * sqrt + i];
+                set[count++] = a[blockIndex * sqrt + i];
             }
             freq[a[blockIndex * sqrt + i]]++;
         }
         long result = blockIndex > 0 ? blocks[blockIndex - 1] : 1;
         for (int i = 0; i < count; i++) {
-            final int previous = blockIndex > 0 ? frequencies[blockIndex - 1][queue[i]] : 0;
+            final int previous = blockIndex > 0 ? frequencies[blockIndex - 1][set[i]] : 0;
             result = ((((result
                     * invPowers[previous])
                     % mod)
-                    * powers[previous + freq[queue[i]]])
+                    * powers[previous + freq[set[i]]])
                     % mod);
         }
         return result;

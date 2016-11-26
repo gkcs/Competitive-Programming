@@ -3,158 +3,118 @@ package main.java;
 import java.util.Arrays;
 
 public class SegmentTree {
-    private static final int mod = 1000000007;
-    private final int a[][][];
+    private final long a[];
     private int digit, n;
-    private long powers[] = new long[200000];
+    private final boolean flipped[];
 
-    private void populatePowers() {
-        for (int i = 0; i < powers.length; i++) {
-            powers[i] = pow(i + 1);
-        }
-    }
-
-    public SegmentTree(int n) {
+    public SegmentTree(final int n) {
         this.n = n;
         digit = 0;
         while (n > (1 << digit)) {
             digit++;
         }
-        a = new int[1 << (digit + 1)][][];
+        this.a = new long[1 << (digit + 1)];
         buildTree(1);
-        populatePowers();
+        flipped = new boolean[this.a.length];
     }
 
-    private int[][] findResult(int node, int left, int right, int gleft, int gright) {
+    private long findResult(final int node,
+                            final int left,
+                            final int right,
+                            final int leftMostIndex,
+                            final int rightMostIndex) {
         if (left <= right) {
-            if (gleft >= left && gright <= right) {
+            if (leftMostIndex >= left && rightMostIndex <= right) {
                 return a[node];
-            } else if ((left >= gleft && gright >= left) || (right >= gleft && gright >= right)) {
-                return frequency(findResult(node << 1, left, right, gleft, (gright + gleft) / 2),
-                                 findResult((node << 1) + 1, left, right, ((gright + gleft) / 2) + 1, gright));
+            } else if ((left >= leftMostIndex && rightMostIndex >= left) || (right >= leftMostIndex && rightMostIndex >= right)) {
+                if (flipped[node]) {
+                    flip(node << 1, (rightMostIndex - leftMostIndex + 1) >> 1);
+                    flip((node << 1) + 1, (rightMostIndex - leftMostIndex + 1) >> 1);
+                    flipped[node] = false;
+                }
+                return findResult(node << 1, left, right, leftMostIndex, (rightMostIndex + leftMostIndex) >> 1)
+                        + findResult((node << 1) + 1,
+                                     left,
+                                     right,
+                                     ((rightMostIndex + leftMostIndex) >> 1) + 1,
+                                     rightMostIndex);
             }
         }
-        return new int[0][0];
+        return 0;
     }
 
-    private long product(int[][] frequencies) {
-        long prod = 1;
-        int length = frequencies[frequencies.length - 1][0] == -1 ? frequencies[frequencies.length - 1][1] : frequencies.length;
-        for (int i = 0; i < length; i++) {
-            prod = (prod * powers[frequencies[i][1]]) % mod;
-        }
-        return prod;
-    }
-
-    private long pow(int mult) {
-        long result = 1;
-        long exponent = mult;
-        if ((mult & 1) != 0) {
-            result = mult;
-        }
-        for (int bit = 1; bit < 32; bit++) {
-            exponent = (exponent * exponent) % mod;
-            if ((mult & (1 << bit)) != 0) {
-                result = (result * exponent) % mod;
-            }
-        }
-        return result;
-    }
-
-    private int[][] buildTree(int node) {
-        if (node >= (1 << digit) + n) {
-            return (a[node] = new int[0][0]);
-        } else if (node >= (1 << digit)) {
-            return (a[node] = new int[][]{{0, 1}});
+    private void flip(final int index, final int range) {
+        if (flipped[index]) {
+            flipped[index] = false;
         } else {
-            a[node] = frequency(buildTree(node << 1), buildTree((node << 1) + 1));
+            flipped[index] = true;
+            a[index] = range - a[index];
+        }
+    }
+
+    private long buildTree(final int node) {
+        if (node >= (1 << digit)) {
             return a[node];
+        } else {
+            return a[node] = buildTree(node << 1) + buildTree((node << 1) + 1);
         }
     }
 
-    private int[][] frequency(int a[][], int b[][]) {
-        if (a.length == 0) {
-            return b;
-        } else if (b.length == 0) {
-            return a;
-        }
-        int firstSize = a[a.length - 1][0] == -1 ? a[a.length - 1][1] : a.length;
-        int secondSize = b[b.length - 1][0] == -1 ? b[b.length - 1][1] : b.length;
-        return frequency(a, b, new int[firstSize + secondSize][2]);
+    public void updateTree(final int l, final int r) {
+        update(1, (1 << digit) + l - 1, (1 << digit) + r - 1, 1 << digit, (1 << (digit + 1)) - 1);
     }
 
-    private int[][] frequency(int a[][], int b[][], int result[][]) {
-        int count = 0;
-        int i = 0, j = 0;
-        if (a.length == 0) {
-            return b;
-        } else if (b.length == 0) {
-            return a;
-        }
-        int firstSize = a[a.length - 1][0] == -1 ? a[a.length - 1][1] : a.length;
-        int secondSize = b[b.length - 1][0] == -1 ? b[b.length - 1][1] : b.length;
-        while (i < firstSize && j < secondSize) {
-            if (a[i][0] > b[j][0]) {
-                result[count][0] = b[j][0];
-                result[count][1] = b[j][1];
-                count++;
-                j++;
-            } else if (a[i][0] < b[j][0]) {
-                result[count][0] = a[i][0];
-                result[count][1] = a[i][1];
-                count++;
-                i++;
-            } else {
-                result[count][0] = a[i][0];
-                result[count][1] = a[i][1] + b[j][1];
-                count++;
-                i++;
-                j++;
+    private void update(final int node,
+                        final int left,
+                        final int right,
+                        final int leftMostIndex,
+                        final int rightMostIndex) {
+        if (left <= right) {
+            if (leftMostIndex >= left && rightMostIndex <= right) {
+                flip(node, rightMostIndex - leftMostIndex + 1);
+            } else if ((left >= leftMostIndex && rightMostIndex >= left) || (right >= leftMostIndex && rightMostIndex >= right)) {
+                if (flipped[node]) {
+                    flip(node << 1, (rightMostIndex - leftMostIndex + 1) >> 1);
+                    flip((node << 1) + 1, (rightMostIndex - leftMostIndex + 1) >> 1);
+                    flipped[node] = false;
+                }
+                update(node << 1, left, right, leftMostIndex, (rightMostIndex + leftMostIndex) >> 1);
+                update((node << 1) + 1, left, right, ((rightMostIndex + leftMostIndex) >> 1) + 1, rightMostIndex);
             }
         }
-        while (i < firstSize) {
-            result[count][0] = a[i][0];
-            result[count][1] = a[i][1];
-            count++;
-            i++;
-        }
-        while (j < secondSize) {
-            result[count][0] = b[j][0];
-            result[count][1] = b[j][1];
-            count++;
-            j++;
-        }
-        if (count < result.length) {
-            result[result.length - 1][0] = -1;
-            result[result.length - 1][1] = count;
-        }
-        return result;
-    }
-
-    public void updateTree(int index, int value) {
-        update((1 << digit) + index - 1, value);
-    }
-
-    private void update(int index, int value) {
-        if (index > 0) {
-            if ((index >= 1 << digit)) {
-                a[index] = new int[][]{{value, 1}};
-            } else {
-                frequency(a[index << 1], a[(index << 1) + 1], a[index]);
-            }
-            update(index >> 1, value);
+        if (node < (1 << digit)) {
+            a[node] = a[node << 1] + a[(node << 1) + 1];
         }
     }
 
-    public long handleQuery(int l, int r) {
-        return product(findResult(1, (1 << digit) + l - 1, (1 << digit) + r - 1, 1 << digit, (1 << (digit + 1)) - 1));
+    public long handleQuery(final int l, final int r) {
+        return findResult(1, (1 << digit) + l - 1, (1 << digit) + r - 1, 1 << digit, (1 << (digit + 1)) - 1);
     }
 
 
     @Override
     public String toString() {
         return "SegmentTree{" +
-                "a=" + Arrays.deepToString(a) +
+                "a=" + Arrays.toString(a) +
+                ", flipped=" + Arrays.toString(flipped) +
                 '}';
+    }
+}
+
+class SegmentTreeMain {
+    public static void main(String[] args) {
+        final InputReader inputReader = new InputReader(System.in);
+        final int n = inputReader.readInt(), q = inputReader.readInt();
+        final StringBuilder stringBuilder = new StringBuilder();
+        final SegmentTree segmentTree = new SegmentTree(n);
+        for (int i = 0; i < q; i++) {
+            if (inputReader.readInt() == 0) {
+                segmentTree.updateTree(inputReader.readInt() + 1, inputReader.readInt() + 1);
+            } else {
+                stringBuilder.append(segmentTree.handleQuery(inputReader.readInt() + 1, inputReader.readInt() + 1))
+                        .append('\n');
+            }
+        }
+        System.out.println(stringBuilder);
     }
 }
