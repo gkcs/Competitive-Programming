@@ -44,12 +44,8 @@ public class SegmentTree {
     }
 
     private void flip(final int index, final int range) {
-        if (flipped[index]) {
-            flipped[index] = false;
-        } else {
-            flipped[index] = true;
-            a[index] = range - a[index];
-        }
+        flipped[index] = !flipped[index];
+        a[index] = range - a[index];
     }
 
     private long buildTree(final int node) {
@@ -80,10 +76,10 @@ public class SegmentTree {
                 }
                 update(node << 1, left, right, leftMostIndex, (rightMostIndex + leftMostIndex) >> 1);
                 update((node << 1) + 1, left, right, ((rightMostIndex + leftMostIndex) >> 1) + 1, rightMostIndex);
+                if (node < (1 << digit)) {
+                    a[node] = a[node << 1] + a[(node << 1) + 1];
+                }
             }
-        }
-        if (node < (1 << digit)) {
-            a[node] = a[node << 1] + a[(node << 1) + 1];
         }
     }
 
@@ -114,6 +110,7 @@ class SegmentTreeMain {
                 stringBuilder.append(segmentTree.handleQuery(inputReader.readInt() + 1, inputReader.readInt() + 1))
                         .append('\n');
             }
+            System.out.println(segmentTree);
         }
         System.out.println(stringBuilder);
     }
