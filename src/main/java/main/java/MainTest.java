@@ -3,7 +3,6 @@ package main.java;
 import main.java.codechef.Solver;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.Random;
 
 import static org.junit.Assert.assertEquals;
@@ -33,26 +32,22 @@ public class MainTest {
     @Test
     public void randomTests() {
         final Random random = new Random();
-        final int n = 4;// random.nextInt(11) + 1;
+        final int n = 10000;
         final SegmentTree segmentTree = new SegmentTree(n);
         final Solver bruteForceSolver = new Solver(n);
-        final int q[][] = new int[100][3];
+        final int q[][] = new int[1000][3];
         for (int i = 0; i < q.length; i++) {
             q[i][0] = Math.random() > 0.5 ? 0 : 1;
             q[i][1] = random.nextInt(n);
             q[i][2] = random.nextInt(n - q[i][1]) + q[i][1];
         }
-        System.out.println(n);
         for (final int[] query : q) {
-            System.out.println(Arrays.toString(query));
-            System.out.println(segmentTree.toString());
-            System.out.println(bruteForceSolver.toString());
             if (query[0] == 0) {
-                segmentTree.updateTree(query[1] + 1, query[2] + 1);
+                segmentTree.update(query[1] + 1, query[2] + 1);
                 bruteForceSolver.update(query[1], query[2]);
             } else {
-                assertEquals(bruteForceSolver.query(query[1], query[2]), segmentTree.handleQuery(query[1] + 1,
-                                                                                                 query[2] + 1));
+                assertEquals(bruteForceSolver.query(query[1], query[2]), segmentTree.query(query[1] + 1,
+                                                                                           query[2] + 1));
             }
         }
     }

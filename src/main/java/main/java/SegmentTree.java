@@ -2,6 +2,10 @@ package main.java;
 
 import java.util.Arrays;
 
+/**
+ * A segment tree is a data structure to perform range operations. The one implemented below can perform both range
+ * updates and queries. It is based on the codechef question: <a href="https://www.codechef.com/problems/FLIPCOIN">Flipping Coins.</a>
+ */
 public class SegmentTree {
     private final long a[];
     private int digit, n;
@@ -18,11 +22,23 @@ public class SegmentTree {
         flipped = new boolean[this.a.length];
     }
 
-    private long findResult(final int node,
-                            final int left,
-                            final int right,
-                            final int leftMostIndex,
-                            final int rightMostIndex) {
+    /**
+     * Answers a query for a specified range. A node which entirely falls within the queried range returns its value.
+     * Nodes having an intersection with the given range query their children and return the sum of their respective
+     * results. Nodes entirely out of range return an EMPTY_VALUE = 0.
+     *
+     * @param node Index of node being queried.
+     * @param left Left index of specified Range
+     * @param right Right index of specified Range
+     * @param leftMostIndex Leftmost index that this node is responsible for
+     * @param rightMostIndex Rightmost index that this node is responsible for
+     * @return Sum of all nodes in the given range
+     */
+    private long query(final int node,
+                       final int left,
+                       final int right,
+                       final int leftMostIndex,
+                       final int rightMostIndex) {
         if (left <= right) {
             if (leftMostIndex >= left && rightMostIndex <= right) {
                 return a[node];
@@ -32,22 +48,32 @@ public class SegmentTree {
                     flip((node << 1) + 1, (rightMostIndex - leftMostIndex + 1) >> 1);
                     flipped[node] = false;
                 }
-                return findResult(node << 1, left, right, leftMostIndex, (rightMostIndex + leftMostIndex) >> 1)
-                        + findResult((node << 1) + 1,
-                                     left,
-                                     right,
-                                     ((rightMostIndex + leftMostIndex) >> 1) + 1,
-                                     rightMostIndex);
+                return query(node << 1, left, right, leftMostIndex, (rightMostIndex + leftMostIndex) >> 1)
+                        + query((node << 1) + 1,
+                                left,
+                                right,
+                                ((rightMostIndex + leftMostIndex) >> 1) + 1,
+                                rightMostIndex);
             }
         }
         return 0;
     }
 
+    /**
+     * Flips a given node. After this operation, the node inverts all coins belonging to it.
+     * @param index Node index
+     * @param range Node range
+     */
     private void flip(final int index, final int range) {
         flipped[index] = !flipped[index];
         a[index] = range - a[index];
     }
 
+    /**
+     * Builds the tree in 2*N + N + N/2 + ... + 1 = 4*N => O(N) time.
+     * @param node Node index of the subtree being built.
+     * @return Sum of all nodes in this subtree.
+     */
     private long buildTree(final int node) {
         if (node >= (1 << digit)) {
             return a[node];
@@ -56,10 +82,27 @@ public class SegmentTree {
         }
     }
 
-    public void updateTree(final int l, final int r) {
+    /**
+     * Method to update a range in the tree
+     * @param l Left index of range
+     * @param r Right index of range
+     */
+    public void update(final int l, final int r) {
         update(1, (1 << digit) + l - 1, (1 << digit) + r - 1, 1 << digit, (1 << (digit + 1)) - 1);
     }
 
+    /**
+     * Updates all values in a specified range. A node which entirely falls within the queried range updates it's own
+     * value and flips itself.
+     * Nodes having an intersection with the given range update their children and ensure consistency after doing so.
+     * Nodes entirely out of range do nothing.
+     *
+     * @param node Index of node being queried.
+     * @param left Left index of specified Range
+     * @param right Right index of specified Range
+     * @param leftMostIndex Leftmost index that this node is responsible for
+     * @param rightMostIndex Rightmost index that this node is responsible for
+     */
     private void update(final int node,
                         final int left,
                         final int right,
@@ -83,17 +126,13 @@ public class SegmentTree {
         }
     }
 
-    public long handleQuery(final int l, final int r) {
-        return findResult(1, (1 << digit) + l - 1, (1 << digit) + r - 1, 1 << digit, (1 << (digit + 1)) - 1);
-    }
-
-
-    @Override
-    public String toString() {
-        return "SegmentTree{" +
-                "a=" + Arrays.toString(a) +
-                ", flipped=" + Arrays.toString(flipped) +
-                '}';
+    /**
+     * Method to query a range in the tree
+     * @param l Left index of range
+     * @param r Right index of range
+     */
+    public long query(final int l, final int r) {
+        return query(1, (1 << digit) + l - 1, (1 << digit) + r - 1, 1 << digit, (1 << (digit + 1)) - 1);
     }
 }
 
@@ -105,12 +144,11 @@ class SegmentTreeMain {
         final SegmentTree segmentTree = new SegmentTree(n);
         for (int i = 0; i < q; i++) {
             if (inputReader.readInt() == 0) {
-                segmentTree.updateTree(inputReader.readInt() + 1, inputReader.readInt() + 1);
+                segmentTree.update(inputReader.readInt() + 1, inputReader.readInt() + 1);
             } else {
-                stringBuilder.append(segmentTree.handleQuery(inputReader.readInt() + 1, inputReader.readInt() + 1))
+                stringBuilder.append(segmentTree.query(inputReader.readInt() + 1, inputReader.readInt() + 1))
                         .append('\n');
             }
-            System.out.println(segmentTree);
         }
         System.out.println(stringBuilder);
     }
