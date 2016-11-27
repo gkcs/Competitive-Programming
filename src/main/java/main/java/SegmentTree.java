@@ -1,7 +1,5 @@
 package main.java;
 
-import java.util.Arrays;
-
 /**
  * A segment tree is a data structure to perform range operations. The one implemented below can perform both range
  * updates and queries. It is based on the codechef question: <a href="https://www.codechef.com/problems/FLIPCOIN">Flipping Coins.</a>
@@ -27,10 +25,10 @@ public class SegmentTree {
      * Nodes having an intersection with the given range query their children and return the sum of their respective
      * results. Nodes entirely out of range return an EMPTY_VALUE = 0.
      *
-     * @param node Index of node being queried.
-     * @param left Left index of specified Range
-     * @param right Right index of specified Range
-     * @param leftMostIndex Leftmost index that this node is responsible for
+     * @param node           Index of node being queried.
+     * @param left           Left index of specified Range
+     * @param right          Right index of specified Range
+     * @param leftMostIndex  Leftmost index that this node is responsible for
      * @param rightMostIndex Rightmost index that this node is responsible for
      * @return Sum of all nodes in the given range
      */
@@ -61,6 +59,7 @@ public class SegmentTree {
 
     /**
      * Flips a given node. After this operation, the node inverts all coins belonging to it.
+     *
      * @param index Node index
      * @param range Node range
      */
@@ -71,6 +70,7 @@ public class SegmentTree {
 
     /**
      * Builds the tree in 2*N + N + N/2 + ... + 1 = 4*N => O(N) time.
+     *
      * @param node Node index of the subtree being built.
      * @return Sum of all nodes in this subtree.
      */
@@ -84,6 +84,7 @@ public class SegmentTree {
 
     /**
      * Method to update a range in the tree
+     *
      * @param l Left index of range
      * @param r Right index of range
      */
@@ -97,10 +98,10 @@ public class SegmentTree {
      * Nodes having an intersection with the given range update their children and ensure consistency after doing so.
      * Nodes entirely out of range do nothing.
      *
-     * @param node Index of node being queried.
-     * @param left Left index of specified Range
-     * @param right Right index of specified Range
-     * @param leftMostIndex Leftmost index that this node is responsible for
+     * @param node           Index of node being queried.
+     * @param left           Left index of specified Range
+     * @param right          Right index of specified Range
+     * @param leftMostIndex  Leftmost index that this node is responsible for
      * @param rightMostIndex Rightmost index that this node is responsible for
      */
     private void update(final int node,
@@ -128,6 +129,7 @@ public class SegmentTree {
 
     /**
      * Method to query a range in the tree
+     *
      * @param l Left index of range
      * @param r Right index of range
      */

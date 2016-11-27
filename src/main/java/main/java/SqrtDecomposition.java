@@ -5,6 +5,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Square root decomposition allows us to answer queries in sqrt(N) time. As the implementation of these structures
+ * is usually simpler than a segment tree, they are a useful tool in a programmer's arsenal.
+ */
 public class SqrtDecomposition {
     private final int a[];
     private final long blocks[];
@@ -13,6 +17,8 @@ public class SqrtDecomposition {
     private final int frequencies[][];
     private long powers[] = new long[202500];
     private long invPowers[] = new long[202500];
+    private final int freq[] = new int[202500];
+
     private final int sqrt;
 
     public SqrtDecomposition(int n) {
@@ -30,6 +36,11 @@ public class SqrtDecomposition {
             blocks[i] = powers[index + sqrt];
         }
     }
+
+    /**
+     * @param index The index to be updated
+     * @param value The value to set the element at specified index
+     */
 
     public void update(int index, int value) {
         index--;
@@ -53,14 +64,16 @@ public class SqrtDecomposition {
         }
     }
 
-    private final int freq[] = new int[202500];
-
-    public long query(int end) {
-        end--;
-        final int blockIndex = end / sqrt;
+    /**
+     * @param index The index to be queried up to.
+     * @return The frequency power from 1 up to given index
+     */
+    public long query(int index) {
+        index--;
+        final int blockIndex = index / sqrt;
         final int set[] = new int[sqrt];
         int count = 0;
-        final int endIndex = end % sqrt;
+        final int endIndex = index % sqrt;
         for (int i = 0; i <= endIndex; i++) {
             freq[a[blockIndex * sqrt + i]] = 0;
         }
@@ -82,6 +95,9 @@ public class SqrtDecomposition {
         return result;
     }
 
+    /**
+     * Computes all values of number^number and their inverse moduli between 1 to the maximum size of array.
+     */
     private void populatePowers() {
         for (int i = 0; i < powers.length; i++) {
             powers[i] = pow(i + 1);
@@ -89,15 +105,19 @@ public class SqrtDecomposition {
         }
     }
 
-    public static long pow(int mult) {
+    /**
+     * @param number The number to be raised to itself
+     * @return number^number
+     */
+    public static long pow(int number) {
         long result = 1;
-        long exponent = mult;
-        if ((mult & 1) != 0) {
-            result = mult;
+        long exponent = number;
+        if ((number & 1) != 0) {
+            result = number;
         }
         for (int bit = 1; bit < 32; bit++) {
             exponent = (exponent * exponent) % mod;
-            if ((mult & (1 << bit)) != 0) {
+            if ((number & (1 << bit)) != 0) {
                 result = (result * exponent) % mod;
             }
         }
