@@ -1,13 +1,9 @@
 import main.java.MinMax;
 import org.junit.Test;
 
-import java.util.concurrent.CompletableFuture;
-
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 
 public class ChainReactionTest {
     @Test
