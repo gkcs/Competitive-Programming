@@ -39,7 +39,7 @@ class ChainReaction {
  */
 public class MinMax {
     private static final int MAX_DEPTH = 60;
-    public static int TIME_OUT = 1180;
+    public static int TIME_OUT = 1280;
     public int computations = 0, depth = 4, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -48,6 +48,7 @@ public class MinMax {
     private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
+    private boolean nullSearchActivated = false;
 
     public MinMax() {
         Board.setMoves();
@@ -70,10 +71,10 @@ public class MinMax {
         }
         startConfigs = new Configuration[board.choices[player] + board.choices[0]];
         for (int i = 0; i < board.choices[0]; i++) {
-            startConfigs[i] = new Configuration(board.moves[0][i], board, player, 0);
+            startConfigs[i] = new Configuration(board.moves[0][i], board, player, 0, false);
         }
         for (int i = 0; i < board.choices[player]; i++) {
-            startConfigs[i + board.choices[0]] = new Configuration(board.moves[player][i], board, player, 0);
+            startConfigs[i + board.choices[0]] = new Configuration(board.moves[player][i], board, player, 0, false);
         }
         Arrays.sort(startConfigs);
         Move bestMove = startConfigs[0].move;
@@ -104,7 +105,8 @@ public class MinMax {
                                                level,
                                                toTake,
                                                toGive,
-                                               -possibleConfig.strength);
+                                               -possibleConfig.strength,
+                                               false);
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -177,6 +179,7 @@ public class MinMax {
      * @param a              Alpha
      * @param b              Beta
      * @param heuristicValue The heuristic value of board
+     * @param isNullSearch   Specifies if the current search had a null move in it
      * @return The value of current board position
      * @throws TimeoutException if it runs out of time.
      */
@@ -185,7 +188,8 @@ public class MinMax {
                          final int level,
                          final long a,
                          final long b,
-                         final int heuristicValue) throws TimeoutException {
+                         final int heuristicValue,
+                         final boolean isNullSearch) throws TimeoutException {
         long toTake = a, toGive = b;
         int max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
@@ -200,22 +204,51 @@ public class MinMax {
         } else {
             final Configuration[] configurations = new Configuration[board.choices[player] + board.choices[0]];
             for (int i = 0; i < board.choices[0]; i++) {
-                configurations[i] = new Configuration(board.moves[0][i], board, player, level);
+                configurations[i] = new Configuration(board.moves[0][i], board, player, level, isNullSearch);
             }
             for (int i = 0; i < board.choices[player]; i++) {
-                configurations[i + board.choices[0]] = new Configuration(board.moves[player][i], board, player, level);
+                configurations[i + board.choices[0]] = new Configuration(board.moves[player][i],
+                                                                         board,
+                                                                         player,
+                                                                         level,
+                                                                         isNullSearch);
             }
             Arrays.sort(configurations);
             int index = 0;
             for (; index < configurations.length; index++) {
-                Configuration possibleConfig = configurations[index];
+                final Configuration possibleConfig = configurations[index];
                 computations++;
+                if (nullSearchActivated && !isNullSearch && possibleConfig.board.choices[0] > 5) {
+                    final int nullMoveValue = -evaluate(possibleConfig.board,
+                                                        player,
+                                                        level + 3,
+                                                        player == 1 ? toTake : toGive - 1,
+                                                        player == 1 ? toTake + 1 : toGive,
+                                                        possibleConfig.strength,
+                                                        true);
+                    if (player == 1) {
+                        if (nullMoveValue <= toTake) {
+                            if (nullMoveValue > max) {
+                                max = nullMoveValue;
+                            }
+                            continue;
+                        }
+                    } else {
+                        if (nullMoveValue >= toGive) {
+                            if (nullMoveValue > max) {
+                                max = nullMoveValue;
+                            }
+                            continue;
+                        }
+                    }
+                }
                 final int moveValue = evaluate(possibleConfig.board,
                                                flip(player),
                                                level + 1,
                                                toTake,
                                                toGive,
-                                               -possibleConfig.strength);
+                                               -possibleConfig.strength,
+                                               isNullSearch);
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
@@ -290,12 +323,14 @@ public class MinMax {
          */
         final boolean killer;
 
-        private Configuration(final Move move, final Board board, final int player, final int level) {
+        private Configuration(final Move move,
+                              final Board board,
+                              final int player,
+                              final int level,
+                              boolean resultsFromNullSearch) {
             final Move moveToBeMade = Board.ALL_MOVES[player][move.x][move.y];
             this.board = board.makeMove(moveToBeMade);
-            if (killerMoves[level][0] == moveToBeMade) {
-                killer = true;
-            } else if (killerMoves[level][1] == moveToBeMade) {
+            if (!resultsFromNullSearch && killerMoves[level][0] == moveToBeMade || killerMoves[level][1] == moveToBeMade) {
                 killer = true;
             } else {
                 this.strength = this.board.heuristicValue(player);
@@ -363,23 +398,23 @@ class Move {
 /**
  * A representation of the board as bit array would be better. Some analysis states that only 7 configurations are
  * possible for each cell:
- *
+ * <p>
  * Config Orbs Player
- *
- *      0    0      0
- *
- *      1    1      1
- *
- *      2    2      1
- *
- *      3    3      1
- *
- *      4    1      2
- *
- *      5    2      2
- *
- *      6    3      2
- *      
+ * <p>
+ * 0    0      0
+ * <p>
+ * 1    1      1
+ * <p>
+ * 2    2      1
+ * <p>
+ * 3    3      1
+ * <p>
+ * 4    1      2
+ * <p>
+ * 5    2      2
+ * <p>
+ * 6    3      2
+ * <p>
  * So each board cell can be represented by log(7) base 2 => 3 bits. As there are 25 cells in a 5*5 board, each board
  * should require just 75 bits, or three integers.
  * However, due to performance and complexity considerations, I believe 4 bits per position is better. 2 for player
@@ -400,7 +435,7 @@ class Board {
     /**
      * Creates a new board using the given board array to initialize move lists and counters.
      *
-     * @param board
+     * @param board the game board
      */
     Board(final int[][][] board) {
         for (int i = 0; i < BOARD_SIZE; i++) {
@@ -418,7 +453,7 @@ class Board {
      * @param moves   Original Move list
      * @param choices Original Player Cell counter
      */
-    Board(final int[][][] board, final Move[][] moves, final int choices[]) {
+    private Board(final int[][][] board, final Move[][] moves, final int choices[]) {
         System.arraycopy(choices, 0, this.choices, 0, choices.length);
         for (int i = 0; i < PLAYERS; i++) {
             System.arraycopy(moves[i], 0, this.moves[i], 0, choices[i]);
@@ -468,7 +503,7 @@ class Board {
      * @return New board with move played.
      */
     Board makeMove(final Move move) {
-        return new Board(board, moves, choices).play(move);
+        return getCopy().play(move);
     }
 
     /**
