@@ -218,7 +218,7 @@ public class MinMax {
             for (; index < configurations.length; index++) {
                 final Configuration possibleConfig = configurations[index];
                 computations++;
-                if (nullSearchActivated && !isNullSearch && possibleConfig.board.choices[0] > 5) {
+                if (nullSearchActivated && !isNullSearch && isNotEndGame(possibleConfig)) {
                     final int nullMoveValue = -evaluate(possibleConfig.board,
                                                         player,
                                                         level + 3,
@@ -306,6 +306,10 @@ public class MinMax {
             }
         }
         return -max;
+    }
+
+    private boolean isNotEndGame(Configuration configuration) {
+        return configuration.board.choices[0] > 5;
     }
 
     /**
