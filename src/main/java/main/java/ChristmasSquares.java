@@ -18,8 +18,9 @@ public class ChristmasSquares {
     private static final int TIME_OUT = 4000;
 
     public static void main(String[] args) throws IOException {
-        System.out.println(display(new MaximizeSquares().maximize(Integer.parseInt(new BufferedReader(new InputStreamReader(
-                System.in)).readLine()), TIME_OUT)));
+        final int n = Integer.parseInt(new BufferedReader(new InputStreamReader(
+                System.in)).readLine());
+        System.out.println(display(new MaximizeSquares(n).maximize(n, TIME_OUT)));
     }
 
     private static String display(final int[] solution) {
@@ -30,46 +31,52 @@ public class ChristmasSquares {
 class MaximizeSquares {
     private final long squares[];
 
-    MaximizeSquares() {
-        this.squares = new long[10001];
-        for (int i = 0; i < squares.length; i++) {
-            squares[i] = i * (long) i;
+    MaximizeSquares(int n) {
+        this.squares = new long[n / 2 + 1];
+        long x = n / 2;
+        for (int i = 0; i < squares.length; i++, x++) {
+            squares[i] = x * x;
         }
     }
 
     private int[] improveRandomly(final int a[], final int timeOut) {
+        if (a.length < 8) {
+            return a;
+        }
         final long startTime = System.currentTimeMillis();
         final Random random = new Random();
-        long sums[] = new long[a.length];
-        sums[0] = a[0];
-        int squareIndex = 0;
+        final int mutableAfter = a.length - (a.length >> 2);
+        final long sums[] = new long[a.length - mutableAfter];
+        for (int i = 0; i <= mutableAfter; i++) {
+            sums[0] += a[i];
+        }
         for (int i = 1; i < sums.length; i++) {
             sums[i] = sums[i - 1] + a[i];
-            if (Arrays.binarySearch(squares, sums[i]) >= 0) {
-                squareIndex = i;
-            }
         }
-        int maxScore = 0;
-        final int b[] = new int[a.length];
-        System.arraycopy(a, squareIndex, b, squareIndex, b.length - squareIndex);
+        final int b[] = new int[sums.length];
+        System.arraycopy(a, mutableAfter, b, 0, b.length);
         while (System.currentTimeMillis() < startTime + timeOut) {
-            int currentScore = 0;
-            for (int i = 0; i < b.length / 3; i++) {
-                final int left = squareIndex + random.nextInt(b.length - squareIndex);
-                final int right = squareIndex + random.nextInt(b.length - squareIndex);
-                final int temp = b[left];
-                b[left] = b[right];
-                b[right] = temp;
+            final int left = 1 + random.nextInt(b.length - 1);
+            final int right = left + random.nextInt(b.length - left);
+            int previousScore = 0;
+            for (int j = left; j <= right; j++) {
+                sums[j] = sums[j - 1] + b[j];
+                if (Arrays.binarySearch(squares, sums[j]) >= 0) {
+                    previousScore++;
+                }
             }
-            for (int j = squareIndex; j < sums.length; j++) {
+            final int temp = b[left];
+            b[left] = b[right];
+            b[right] = temp;
+            int currentScore = 0;
+            for (int j = left; j <= right; j++) {
                 sums[j] = sums[j - 1] + b[j];
                 if (Arrays.binarySearch(squares, sums[j]) >= 0) {
                     currentScore++;
                 }
             }
-            if (currentScore > maxScore) {
-                System.arraycopy(b, squareIndex, a, squareIndex, b.length - squareIndex);
-                maxScore = currentScore;
+            if (currentScore > previousScore) {
+                System.arraycopy(b, 0, a, mutableAfter, b.length);
             }
         }
         return a;
