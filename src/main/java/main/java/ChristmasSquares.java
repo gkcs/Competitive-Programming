@@ -7,12 +7,6 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-/**
- * Keep a segment tree for each K. The Kth segment tree tells us by how many elements are off by K for a given segment.
- * For a given segment, find the incentive to change it. In case we have a lot of numbers off by X for a given
- * segment, give it max priority. Look to make a swap from its right to left so that X is added to this segment.
- */
-
 public class ChristmasSquares {
 
     private static final int TIME_OUT = 4000;
@@ -30,6 +24,7 @@ public class ChristmasSquares {
 
 class MaximizeSquares {
     private final long squares[];
+    private final Random random = new Random();
 
     MaximizeSquares(int n) {
         this.squares = new long[n / 2 + 1];
@@ -40,12 +35,18 @@ class MaximizeSquares {
     }
 
     private int[] improveRandomly(final int a[], final int timeOut) {
-        if (a.length < 8) {
-            return a;
-        }
         final long startTime = System.currentTimeMillis();
-        final Random random = new Random();
-        final int mutableAfter = a.length - (a.length >> 2);
+        int squareIndex = 0;
+        int mutableAfter = 0;
+        long sum = 0;
+        for (int i = 0; i < a.length; i++) {
+            sum += a[i];
+            if (Arrays.binarySearch(squares, sum) >= 0) {
+                mutableAfter = squareIndex;
+                squareIndex = i;
+            }
+        }
+        mutableAfter++;
         final long sums[] = new long[a.length - mutableAfter];
         for (int i = 0; i <= mutableAfter; i++) {
             sums[0] += a[i];
@@ -53,29 +54,27 @@ class MaximizeSquares {
         for (int i = 1; i < sums.length; i++) {
             sums[i] = sums[i - 1] + a[i];
         }
+        int maxScore = 1;
         final int b[] = new int[sums.length];
         System.arraycopy(a, mutableAfter, b, 0, b.length);
         while (System.currentTimeMillis() < startTime + timeOut) {
-            final int left = 1 + random.nextInt(b.length - 1);
-            final int right = left + random.nextInt(b.length - left);
-            int previousScore = 0;
-            for (int j = left; j <= right; j++) {
-                sums[j] = sums[j - 1] + b[j];
-                if (Arrays.binarySearch(squares, sums[j]) >= 0) {
-                    previousScore++;
-                }
+            final int first = random.nextInt(b.length);
+            final int second = random.nextInt(b.length);
+            if (first == second) {
+                continue;
             }
-            final int temp = b[left];
-            b[left] = b[right];
-            b[right] = temp;
+            final int temp = b[first];
+            b[first] = b[second];
+            b[second] = temp;
             int currentScore = 0;
-            for (int j = left; j <= right; j++) {
+            for (int j = 1; j < b.length; j++) {
                 sums[j] = sums[j - 1] + b[j];
                 if (Arrays.binarySearch(squares, sums[j]) >= 0) {
                     currentScore++;
                 }
             }
-            if (currentScore > previousScore) {
+            if (currentScore > maxScore) {
+                maxScore = currentScore;
                 System.arraycopy(b, 0, a, mutableAfter, b.length);
             }
         }
