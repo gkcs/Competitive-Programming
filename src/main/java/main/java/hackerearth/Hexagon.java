@@ -1,0 +1,454 @@
+package main.java.hackerearth;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.concurrent.TimeoutException;
+
+public class Hexagon {
+    public static void main(String[] args) throws IOException {
+        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
+        final int[][] board = new int[6][7];
+        for (int i = 0; i < board.length; i++) {
+            final String cols[] = bufferedReader.readLine().split(" ");
+            for (int j = 0; j < board[i].length; j++) {
+                board[i][j] = cols[j].charAt(0) - '0';
+            }
+        }
+        final MinMax minMax = new MinMax(Integer.parseInt(bufferedReader.readLine()));
+        final int player = Integer.parseInt(bufferedReader.readLine());
+        System.out.println(minMax.iterativeSearchForBestMove(board, player));
+        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
+    }
+}
+
+class MinMax {
+    private static final int MAX_DEPTH = 60, TERMINAL_DEPTH = 100;
+    public static int TIME_OUT = 1280;
+    public int computations = 0, depth = 4, moves = 0;
+    public long eval = 0;
+    static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
+    private final long startTime = System.currentTimeMillis();
+    private boolean test;
+    private Configuration[] startConfigs;
+    private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
+    private final int[][] efficiency = new int[MAX_DEPTH][2];
+    private static final boolean nullSearchActivated = true;
+    private final int currentDepth;
+    private boolean timeOut;
+
+    MinMax(final int currentDepth) {
+        this.currentDepth = currentDepth;
+    }
+
+    public String iterativeSearchForBestMove(final int[][] game, final int player) {
+        Board.setThoseWithinSight();
+        final Board board = new Board(game);
+        if (board.places[0] == 0) {
+            throw new RuntimeException("No possible moves");
+        }
+        startConfigs = new Configuration[board.moves[player].length];
+        for (int i = 0; i < board.places[0]; i++) {
+            startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
+        }
+        Arrays.sort(startConfigs);
+        Move bestMove = startConfigs[0].move;
+        while (depth < MAX_DEPTH && !timeOut) {
+            bestMove = findBestMove(player, 0);
+            depth++;
+        }
+        eval = startConfigs[0].strength;
+        moves = board.places[0];
+        return bestMove.describe();
+    }
+
+    private Move findBestMove(final int player, final int level) {
+        long toTake = MIN_VALUE, toGive = MAX_VALUE;
+        int max = MIN_VALUE;
+        Move bestMove = startConfigs[0].move;
+        try {
+            for (final Configuration possibleConfig : startConfigs) {
+                final int moveValue = evaluate(possibleConfig.board,
+                                               flip(player),
+                                               level,
+                                               toTake,
+                                               toGive,
+                                               -possibleConfig.strength,
+                                               false);
+                possibleConfig.strength = moveValue;
+                if (player == 1) {
+                    if (toTake < moveValue) {
+                        toTake = moveValue;
+                    }
+                } else {
+                    if (toGive > -moveValue) {
+                        toGive = -moveValue;
+                    }
+                }
+                if (moveValue > max) {
+                    max = moveValue;
+                    bestMove = possibleConfig.move;
+                    if (Math.abs(max - MAX_VALUE) <= 100) {
+                        break;
+                    }
+                }
+                if (toTake >= toGive) {
+                    if (possibleConfig.killer) {
+                        if (killerMoves[level][0] == possibleConfig.move) {
+                            efficiency[level][0]++;
+                        } else {
+                            efficiency[level][1]++;
+                            if (efficiency[level][0] < efficiency[level][1]) {
+                                final Move temp = killerMoves[level][0];
+                                killerMoves[level][0] = killerMoves[level][1];
+                                killerMoves[level][1] = temp;
+                            }
+                        }
+                    } else {
+                        if (killerMoves[level][0] == null) {
+                            killerMoves[level][0] = possibleConfig.move;
+                            efficiency[level][0] = 1;
+                        } else if (killerMoves[level][1] == null) {
+                            killerMoves[level][1] = possibleConfig.move;
+                            efficiency[level][1] = 1;
+                        }
+                    }
+                    break;
+                } else if (possibleConfig.killer) {
+                    if (killerMoves[level][0] == possibleConfig.move) {
+                        efficiency[level][0]--;
+                    } else {
+                        efficiency[level][1]--;
+                    }
+                    if (efficiency[level][0] < efficiency[level][1]) {
+                        final Move temp = killerMoves[level][0];
+                        killerMoves[level][0] = killerMoves[level][1];
+                        killerMoves[level][1] = temp;
+                    }
+                    if (efficiency[level][1] <= 0) {
+                        efficiency[level][1] = 0;
+                        killerMoves[level][1] = null;
+                    }
+                }
+            }
+        } catch (TimeoutException e) {
+            timeOut = true;
+        }
+        Arrays.sort(startConfigs);
+        return bestMove;
+    }
+
+    private int evaluate(final Board board,
+                         final int player,
+                         final int level,
+                         final long a,
+                         final long b,
+                         final int heuristicValue,
+                         final boolean isNullSearch) throws TimeoutException {
+        long toTake = a, toGive = b;
+        int max = MIN_VALUE;
+        if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
+            throw new TimeoutException("Time out...");
+        }
+        final Integer terminalValue;
+        if ((terminalValue = board.terminalValue(player)) != 0) {
+            max = terminalValue * ((-player << 1) + 3);
+            max += max < 0 ? level : -level;
+        } else if (level >= depth || currentDepth + level > TERMINAL_DEPTH) {
+            max = heuristicValue;
+        } else {
+            final Configuration[] configurations = new Configuration[board.moves[player].length];
+            for (int i = 0; i < configurations.length; i++) {
+                configurations[i] = new Configuration(board.moves[player][i],
+                                                      board,
+                                                      level,
+                                                      isNullSearch);
+            }
+            Arrays.sort(configurations);
+            for (final Configuration possibleConfig : configurations) {
+                computations++;
+                if (nullSearchActivated && !isNullSearch && !isEndGame(possibleConfig)) {
+                    final int nullMoveValue = -evaluate(possibleConfig.board,
+                                                        player,
+                                                        level + 3,
+                                                        player == 1 ? toTake : toGive - 1,
+                                                        player == 1 ? toTake + 1 : toGive,
+                                                        possibleConfig.strength,
+                                                        true);
+                    if (player == 1) {
+                        if (nullMoveValue <= toTake) {
+                            if (nullMoveValue > max) {
+                                max = nullMoveValue;
+                            }
+                            continue;
+                        }
+                    } else {
+                        if (nullMoveValue >= toGive) {
+                            if (nullMoveValue > max) {
+                                max = nullMoveValue;
+                            }
+                            continue;
+                        }
+                    }
+                }
+                final int moveValue = evaluate(possibleConfig.board,
+                                               flip(player),
+                                               level + 1,
+                                               toTake,
+                                               toGive,
+                                               -possibleConfig.strength,
+                                               isNullSearch);
+                if (player == 1) {
+                    if (toTake < moveValue) {
+                        toTake = moveValue;
+                    }
+                } else {
+                    if (toGive > -moveValue) {
+                        toGive = -moveValue;
+                    }
+                }
+                if (moveValue > max) {
+                    max = moveValue;
+                    if (Math.abs(max - MAX_VALUE) <= 100) {
+                        break;
+                    }
+                }
+                if (toTake >= toGive) {
+                    max = moveValue;
+                    if (possibleConfig.killer) {
+                        if (killerMoves[level][0] == possibleConfig.move) {
+                            efficiency[level][0]++;
+                        } else {
+                            efficiency[level][1]++;
+                            if (efficiency[level][0] < efficiency[level][1]) {
+                                final Move temp = killerMoves[level][0];
+                                killerMoves[level][0] = killerMoves[level][1];
+                                killerMoves[level][1] = temp;
+                            }
+                        }
+                    } else {
+                        if (killerMoves[level][0] == null) {
+                            killerMoves[level][0] = possibleConfig.move;
+                            efficiency[level][0] = 1;
+                        } else if (killerMoves[level][1] == null) {
+                            killerMoves[level][1] = possibleConfig.move;
+                            efficiency[level][1] = 1;
+                        }
+                    }
+                    break;
+                } else if (possibleConfig.killer) {
+                    if (killerMoves[level][0] == possibleConfig.move) {
+                        efficiency[level][0]--;
+                    } else {
+                        efficiency[level][1]--;
+                    }
+                    if (efficiency[level][0] < efficiency[level][1]) {
+                        final Move temp = killerMoves[level][0];
+                        killerMoves[level][0] = killerMoves[level][1];
+                        killerMoves[level][1] = temp;
+                    }
+                    if (efficiency[level][1] <= 0) {
+                        efficiency[level][1] = 0;
+                        killerMoves[level][1] = null;
+                    }
+                }
+            }
+        }
+        return -max;
+    }
+
+    private boolean isEndGame(Configuration configuration) {
+        return configuration.board.places[0] < 5;
+    }
+
+    private class Configuration implements Comparable<Configuration> {
+        final Move move;
+        final Board board;
+        int strength;
+        final boolean killer;
+
+        private Configuration(final Move move,
+                              final Board board,
+                              final int level,
+                              final boolean resultsFromNullSearch) {
+            this.board = board.getCopy().play(move);
+            if (!resultsFromNullSearch
+                    && (killerMoves[level][0].equals(move)
+                    || killerMoves[level][1].equals(move))) {
+                killer = true;
+            } else {
+                this.strength = board.heuristicValue(move.player);
+                killer = false;
+            }
+            this.move = move;
+        }
+
+        @Override
+        public int compareTo(Configuration o) {
+            if (killer && o.killer) {
+                return 0;
+            } else if (!killer && o.killer) {
+                return +1;
+            } else if (killer) {
+                return -1;
+            }
+            return o.strength - strength;
+        }
+
+        @Override
+        public String toString() {
+            return "Configuration{" +
+                    "move=" + move +
+                    ", board=" + board +
+                    '}';
+        }
+    }
+
+    static int flip(final int player) {
+        return ~player & 3;
+    }
+
+    public void setTest(boolean test) {
+        this.test = test;
+    }
+}
+
+class Move {
+    final int startX, startY, x, y, player;
+
+    public Move(final int startX, final int startY, final int x, final int y, final int player) {
+        this.startX = startX;
+        this.startY = startY;
+        this.x = x;
+        this.y = y;
+        this.player = player;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        else if (o == null || getClass() != o.getClass()) return false;
+        final Move move = (Move) o;
+        return startX == move.startX && startY == move.startY && x == move.x && y == move.y && player == move.player;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = startX;
+        result = 31 * result + startY;
+        result = 31 * result + x;
+        result = 31 * result + y;
+        result = 31 * result + player;
+        return result;
+    }
+
+    String describe() {
+        return x + " " + y;
+    }
+
+    @Override
+    public String toString() {
+        return "Move{" +
+                "x=" + x +
+                ", y=" + y +
+                ", player=" + player +
+                '}';
+    }
+}
+
+class Board {
+    private static final int ROWS = 6;
+    private static final int COLS = 7;
+    private static final int PLAYERS = 3;
+    final int[][] board;
+    final int places[];
+    final int scores[];
+    final Move moves[][];
+    private static final int neighbours[][][][] = new int[ROWS][COLS][2][];
+    private static final int jumpables[][][][] = new int[ROWS][COLS][2][];
+
+    Board(final int[][] board) {
+        this.board = board;
+        places = new int[PLAYERS];
+        scores = new int[PLAYERS];
+        moves = new Move[PLAYERS][ROWS * COLS];
+    }
+
+    public Board undo(final Move move) {
+        return this;
+    }
+
+    public Board play(final Move move) {
+        return this;
+    }
+
+    public Integer terminalValue(final int player) {
+        final int opponent = MinMax.flip(player);
+        if (scores[player] == ROWS * COLS) {
+            return MinMax.MAX_VALUE;
+        } else if (scores[opponent] == ROWS * COLS) {
+            return MinMax.MIN_VALUE;
+        } else if (places[0] > 0) {
+            return 0;
+        } else {
+            return MinMax.MIN_VALUE;
+        }
+    }
+
+    @Override
+    public String toString() {
+        return Arrays.deepToString(board);
+    }
+
+    int heuristicValue(final int player) {
+        return 100 * (scores[player] - scores[MinMax.flip(player)]);
+    }
+
+    public static void setThoseWithinSight() {
+        final int temps[][] = new int[2][6];
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                int count = 0;
+                if (i > 0) {
+                    if (j > 0) {
+                        temps[0][count] = i - 1;
+                        temps[1][count] = j - 1;
+                        count++;
+                    }
+                    temps[0][count] = i - 1;
+                    temps[1][count] = j;
+                    count++;
+                    if (j < COLS - 1) {
+                        temps[0][count] = i - 1;
+                        temps[1][count] = j + 1;
+                        count++;
+                    }
+                }
+                if (i < ROWS - 1) {
+                    temps[0][count] = i + 1;
+                    temps[1][count] = j;
+                    count++;
+                }
+                if (j > 0) {
+                    temps[0][count] = i;
+                    temps[1][count] = j + 1;
+                    count++;
+                }
+                if (j < COLS - 1) {
+                    temps[0][count] = i;
+                    temps[1][count] = j + 1;
+                    count++;
+                }
+                neighbours[i][j][0] = new int[count];
+                neighbours[i][j][1] = new int[count];
+                System.arraycopy(temps[0], 0, neighbours[i][j][0], 0, count);
+                System.arraycopy(temps[1], 0, neighbours[i][j][1], 0, count);
+            }
+        }
+    }
+
+    public Board getCopy() {
+        return this;
+    }
+}
