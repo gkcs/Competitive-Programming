@@ -382,20 +382,24 @@ class Board {
                 places[player]++;
                 if (player > 0) {
                     for (int k = 0; k < neighbours[i][j][0].length; i++) {
-                        moves[player][options[player]++] = new Move(i,
-                                                                    j,
-                                                                    neighbours[i][j][0][k],
-                                                                    neighbours[i][j][1][k],
-                                                                    player,
-                                                                    false);
+                        if (board[neighbours[i][j][0][k]][neighbours[i][j][1][k]] == 0) {
+                            moves[player][options[player]++] = new Move(i,
+                                                                        j,
+                                                                        neighbours[i][j][0][k],
+                                                                        neighbours[i][j][1][k],
+                                                                        player,
+                                                                        false);
+                        }
                     }
                     for (int k = 0; k < jumpables[i][j][0].length; i++) {
-                        moves[player][options[player]++] = new Move(i,
-                                                                    j,
-                                                                    jumpables[i][j][0][k],
-                                                                    jumpables[i][j][1][k],
-                                                                    player,
-                                                                    true);
+                        if (board[jumpables[i][j][0][k]][jumpables[i][j][1][k]] == 0) {
+                            moves[player][options[player]++] = new Move(i,
+                                                                        j,
+                                                                        jumpables[i][j][0][k],
+                                                                        jumpables[i][j][1][k],
+                                                                        player,
+                                                                        true);
+                        }
                     }
                 }
             }
@@ -425,13 +429,8 @@ class Board {
     public Board play(final Move move) {
         if (move.isAJump) {
             board[move.startX][move.startY] = 0;
-            moves[move.player][options[move.player]++] = new Move(move.x,
-                                                                  move.y,
-                                                                  move.startX,
-                                                                  move.startY,
-                                                                  move.player,
-                                                                  true);
         }
+        board[move.x][move.y] = move.player;
         return this;
     }
 
