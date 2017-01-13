@@ -3,8 +3,9 @@ package main.java.hackerearth;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 public class Hexagon {
     public static void main(String[] args) throws IOException {
@@ -316,13 +317,15 @@ class MinMax {
 
 class Move {
     final int startX, startY, x, y, player;
+    final boolean isAJump;
 
-    public Move(final int startX, final int startY, final int x, final int y, final int player) {
+    public Move(final int startX, final int startY, final int x, final int y, final int player, final boolean isAJump) {
         this.startX = startX;
         this.startY = startY;
         this.x = x;
         this.y = y;
         this.player = player;
+        this.isAJump = isAJump;
     }
 
     @Override
@@ -363,7 +366,7 @@ class Board {
     private static final int PLAYERS = 3;
     final int[][] board;
     final int places[];
-    final int scores[];
+    final int options[];
     final Move moves[][];
     private static final int neighbours[][][][] = new int[ROWS][COLS][2][];
     private static final int jumpables[][][][] = new int[ROWS][COLS][2][];
@@ -371,8 +374,48 @@ class Board {
     Board(final int[][] board) {
         this.board = board;
         places = new int[PLAYERS];
-        scores = new int[PLAYERS];
-        moves = new Move[PLAYERS][ROWS * COLS];
+        moves = new Move[PLAYERS][756];
+        options = new int[PLAYERS];
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                final int player = board[i][j];
+                places[player]++;
+                if (player > 0) {
+                    for (int k = 0; k < neighbours[i][j][0].length; i++) {
+                        moves[player][options[player]++] = new Move(i,
+                                                                    j,
+                                                                    neighbours[i][j][0][k],
+                                                                    neighbours[i][j][1][k],
+                                                                    player,
+                                                                    false);
+                    }
+                    for (int k = 0; k < jumpables[i][j][0].length; i++) {
+                        moves[player][options[player]++] = new Move(i,
+                                                                    j,
+                                                                    jumpables[i][j][0][k],
+                                                                    jumpables[i][j][1][k],
+                                                                    player,
+                                                                    true);
+                    }
+                }
+            }
+        }
+    }
+
+    private Board(final int[][] board, int[] places, int options[], final Move[][] moves) {
+        this.board = board;
+        this.places = new int[PLAYERS];
+        this.options = new int[PLAYERS];
+        System.arraycopy(options, 0, this.options, 0, options.length);
+        System.arraycopy(places, 0, this.places, 0, places.length);
+        this.moves = new Move[PLAYERS][];
+        for (int i = 0; i < PLAYERS; i++) {
+            this.moves[i] = new Move[moves.length];
+            for (int j = 0; j < this.moves[i].length; j++) {
+                final Move move = moves[i][j];
+                this.moves[i][j] = new Move(move.startX, move.startY, move.x, move.y, move.player, move.isAJump);
+            }
+        }
     }
 
     public Board undo(final Move move) {
@@ -380,14 +423,23 @@ class Board {
     }
 
     public Board play(final Move move) {
+        if (move.isAJump) {
+            board[move.startX][move.startY] = 0;
+            moves[move.player][options[move.player]++] = new Move(move.x,
+                                                                  move.y,
+                                                                  move.startX,
+                                                                  move.startY,
+                                                                  move.player,
+                                                                  true);
+        }
         return this;
     }
 
     public Integer terminalValue(final int player) {
         final int opponent = MinMax.flip(player);
-        if (scores[player] == ROWS * COLS) {
+        if (places[player] == ROWS * COLS) {
             return MinMax.MAX_VALUE;
-        } else if (scores[opponent] == ROWS * COLS) {
+        } else if (places[opponent] == ROWS * COLS) {
             return MinMax.MIN_VALUE;
         } else if (places[0] > 0) {
             return 0;
@@ -402,7 +454,7 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        return 100 * (scores[player] - scores[MinMax.flip(player)]);
+        return 100 * (places[player] - places[MinMax.flip(player)]);
     }
 
     public static void setThoseWithinSight() {
@@ -446,9 +498,61 @@ class Board {
                 System.arraycopy(temps[1], 0, neighbours[i][j][1], 0, count);
             }
         }
+
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                final Set<Cell> tooClose = new HashSet<>();
+                tooClose.add(new Cell(i, j));
+                for (int k = 0; k < neighbours[i][j][0].length; k++) {
+                    tooClose.add(new Cell(neighbours[i][j][0][k], neighbours[i][j][1][k]));
+                }
+                final Set<Cell> distantNeighbours = new HashSet<>();
+                for (int k = 0; k < neighbours[i][j][0].length; k++) {
+                    final int x = neighbours[i][j][0][k];
+                    final int y = neighbours[i][j][1][k];
+                    for (int l = 0; l < neighbours[x][y][0].length; l++) {
+                        final Cell current = new Cell(neighbours[x][y][0][l], neighbours[x][y][1][l]);
+                        if (!tooClose.contains(current)) {
+                            distantNeighbours.add(current);
+                        }
+                    }
+                }
+                jumpables[i][j][0] = new int[distantNeighbours.size()];
+                jumpables[i][j][1] = new int[distantNeighbours.size()];
+                List<Cell> distantNeighboursList = distantNeighbours.stream().collect(Collectors.toList());
+                for (int k = 0; k < distantNeighboursList.size(); k++) {
+                    jumpables[i][j][0][k] = distantNeighboursList.get(k).x;
+                    jumpables[i][j][1][k] = distantNeighboursList.get(k).y;
+                }
+            }
+        }
+    }
+
+    private static class Cell {
+        final int x, y;
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final Cell cell = (Cell) o;
+            return x == cell.x && y == cell.y;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = x;
+            result = 31 * result + y;
+            return result;
+        }
+
+        private Cell(final int x, final int y) {
+            this.x = x;
+            this.y = y;
+        }
     }
 
     public Board getCopy() {
-        return this;
+        return new Board(board, places, options, moves);
     }
 }
