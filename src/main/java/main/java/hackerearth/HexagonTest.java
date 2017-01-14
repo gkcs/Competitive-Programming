@@ -21,14 +21,6 @@ public class HexagonTest {
 
     @Test
     public void doNotJumpLikeAMoron() {
-        /*
-        1 1 0 0 0 2 2
-        1 0 0 0 0 0 0
-        0 0 0 0 0 0 0
-        0 0 0 0 0 0 0
-        0 2 0 0 0 0 0
-        2 0 0 0 0 0 1
-         */
         final MinMax minMax = new MinMax(0);
         final int[][] game = new int[][]{
                 {1, 1, 0, 0, 0, 2, 2},
@@ -38,8 +30,43 @@ public class HexagonTest {
                 {0, 2, 0, 0, 0, 0, 0},
                 {2, 0, 0, 0, 0, 0, 1}
         };
+        //minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
         assertNotEquals("0 0\n1 1", s);
+    }
+
+    @Test
+    public void doNotJumpLikeAMoron2() {
+        final MinMax minMax = new MinMax(0);
+        final int[][] game = new int[][]{
+                {1, 0, 0, 0, 0, 2, 2},
+                {0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0},
+                {2, 0, 0, 0, 0, 1, 1}
+        };
+        //minMax.setTest(true);
+        String s = minMax.iterativeSearchForBestMove(game, 1);
+        System.out.println(s);
+        assertNotEquals("0 0\n2 0", s);
+    }
+
+    @Test
+    public void dontGoBeserk() {
+        final MinMax minMax = new MinMax(0);
+        final int[][] game = new int[][]{
+                {2, 2, 2, 2, 0, 0, 2},
+                {0, 2, 2, 2, 2, 0, 0},
+                {2, 2, 2, 2, 2, 0, 0},
+                {2, 1, 2, 2, 2, 2, 0},
+                {1, 2, 2, 1, 2, 1, 0},
+                {2, 2, 1, 1, 1, 1, 0}
+        };
+        //minMax.setTest(true);
+        String s = minMax.iterativeSearchForBestMove(game, 1);
+        System.out.println(s);
+        assertNotEquals("3 1\n1 0", s);
     }
 }

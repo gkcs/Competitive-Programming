@@ -18,8 +18,7 @@ public class Hexagon {
             }
         }
         final MinMax minMax = new MinMax(Integer.parseInt(bufferedReader.readLine()));
-        final int player = Integer.parseInt(bufferedReader.readLine());
-        System.out.println(minMax.iterativeSearchForBestMove(board, player));
+        System.out.println(minMax.iterativeSearchForBestMove(board, Integer.parseInt(bufferedReader.readLine())));
         System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
     }
 }
@@ -27,7 +26,7 @@ public class Hexagon {
 class MinMax {
     private static final int MAX_DEPTH = 60, TERMINAL_DEPTH = 100;
     public static int TIME_OUT = 330;
-    public int computations = 0, depth = 4, moves = 0;
+    public int computations = 0, depth = 1, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
@@ -46,7 +45,7 @@ class MinMax {
     public String iterativeSearchForBestMove(final int[][] game, final int player) {
         Board.setThoseWithinSight();
         final Board board = new Board(game);
-        if (board.places[0] == 0) {
+        if (board.places[player] == 0) {
             throw new RuntimeException("No possible moves");
         }
         startConfigs = new Configuration[board.options[player]];
@@ -60,7 +59,7 @@ class MinMax {
             depth++;
         }
         eval = startConfigs[0].strength;
-        moves = board.places[0];
+        moves = board.places[player];
         return bestMove.describe();
     }
 
@@ -154,8 +153,7 @@ class MinMax {
         }
         final Integer terminalValue;
         if ((terminalValue = board.terminalValue(player)) != 0) {
-            max = terminalValue * ((-player << 1) + 3);
-            max += max < 0 ? level : -level;
+            max += terminalValue < 0 ? level : -level;
         } else if (level >= depth || currentDepth + level > TERMINAL_DEPTH) {
             max = heuristicValue;
         } else {
@@ -260,7 +258,7 @@ class MinMax {
     }
 
     private boolean isEndGame(Configuration configuration) {
-        return configuration.board.places[0] < 5;
+        return configuration.board.places[configuration.move.player] < 5;
     }
 
     private class Configuration implements Comparable<Configuration> {
@@ -279,7 +277,7 @@ class MinMax {
                     || move.equals(killerMoves[level][1]))) {
                 killer = true;
             } else {
-                this.strength = board.heuristicValue(move.player);
+                this.strength = this.board.heuristicValue(move.player);
                 killer = false;
             }
             this.move = move;
@@ -352,9 +350,12 @@ class Move {
     @Override
     public String toString() {
         return "Move{" +
-                "x=" + x +
+                "startX=" + startX +
+                ", startY=" + startY +
+                ", x=" + x +
                 ", y=" + y +
                 ", player=" + player +
+                ", isAJump=" + isAJump +
                 '}';
     }
 }
@@ -378,8 +379,8 @@ class Board {
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 final int player = board[i][j];
-                places[player]++;
-                if (player > 0) {
+                if (player != 0) {
+                    places[player]++;
                     for (int k = 0; k < neighbours[i][j][0].length; k++) {
                         if (board[neighbours[i][j][0][k]][neighbours[i][j][1][k]] == 0) {
                             moves[player][options[player]++] = new Move(i,
@@ -409,8 +410,8 @@ class Board {
         this.board = new int[ROWS][COLS];
         this.places = new int[PLAYERS];
         this.options = new int[PLAYERS];
-        for (int i = 0; i < board.length; i++) {
-            System.arraycopy(board[i], 0, this.board[i], 0, board[i].length);
+        for (int i = 0; i < ROWS; i++) {
+            System.arraycopy(board[i], 0, this.board[i], 0, COLS);
         }
         System.arraycopy(options, 0, this.options, 0, options.length);
         System.arraycopy(places, 0, this.places, 0, places.length);
@@ -433,19 +434,23 @@ class Board {
             board[move.startX][move.startY] = 0;
         }
         board[move.x][move.y] = move.player;
-        return this;
+        final int[][] neighbour = neighbours[move.x][move.y];
+        for (int i = 0; i < neighbour[0].length; i++) {
+            if (board[neighbour[0][i]][neighbour[1][i]] != 0) {
+                board[neighbour[0][i]][neighbour[1][i]] = move.player;
+            }
+        }
+        return new Board(board);
     }
 
     public Integer terminalValue(final int player) {
         final int opponent = MinMax.flip(player);
-        if (places[player] == ROWS * COLS) {
+        if (places[player] == 0) {
+            return MinMax.MIN_VALUE;
+        } else if (places[opponent] == 0) {
             return MinMax.MAX_VALUE;
-        } else if (places[opponent] == ROWS * COLS) {
-            return MinMax.MIN_VALUE;
-        } else if (places[0] > 0) {
-            return 0;
         } else {
-            return MinMax.MIN_VALUE;
+            return 0;
         }
     }
 
@@ -455,7 +460,7 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        return 100 * (places[player] - places[MinMax.flip(player)]);
+        return places[player] - places[MinMax.flip(player)];
     }
 
     public static void setThoseWithinSight() {
