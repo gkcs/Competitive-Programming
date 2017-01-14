@@ -3,6 +3,7 @@ package main.java.hackerearth;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class HexagonTest {
     @Test
@@ -68,5 +69,24 @@ public class HexagonTest {
         String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
         assertNotEquals("3 1\n1 0", s);
+    }
+
+    @Test
+    public void learnToAcceptThings() {
+        Board.setThoseWithinSight();
+        final int[][] game = new int[][]{
+                {2, 2, 2, 2, 1, 1, 2},
+                {1, 2, 2, 2, 2, 2, 2},
+                {2, 2, 2, 2, 2, 2, 2},
+                {2, 1, 2, 2, 2, 2, 2},
+                {1, 2, 2, 1, 2, 1, 1},
+                {2, 2, 1, 1, 1, 1, 2}
+        };
+        //minMax.setTest(true);
+        final Board board = new Board(game);
+        assertTrue(board.isTerminated(1));
+        assertTrue(board.isTerminated(2));
+        System.out.println(board.heuristicValue(1));
+        System.out.println(board.heuristicValue(2));
     }
 }

@@ -19,13 +19,14 @@ public class Hexagon {
         }
         final MinMax minMax = new MinMax(Integer.parseInt(bufferedReader.readLine()));
         System.out.println(minMax.iterativeSearchForBestMove(board, Integer.parseInt(bufferedReader.readLine())));
-        System.out.println(minMax.eval + " " + minMax.depth + " " + minMax.moves + " " + minMax.computations);
+        System.out.println(minMax.eval + " " + minMax.depth + " "
+                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
     }
 }
 
 class MinMax {
     private static final int MAX_DEPTH = 60, TERMINAL_DEPTH = 100;
-    public static int TIME_OUT = 330;
+    public static int TIME_OUT = 1000;
     public int computations = 0, depth = 1, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -36,6 +37,7 @@ class MinMax {
     private final int[][] efficiency = new int[MAX_DEPTH][2];
     private static final boolean nullSearchActivated = false;
     private final int currentDepth;
+    public int cacheHits;
     private boolean timeOut;
 
     MinMax(final int currentDepth) {
@@ -68,14 +70,22 @@ class MinMax {
         int max = MIN_VALUE;
         Move bestMove = startConfigs[0].move;
         try {
+            final HashMap<Board, Integer> boards = new HashMap<>();
             for (final Configuration possibleConfig : startConfigs) {
-                final int moveValue = evaluate(possibleConfig.board,
-                                               flip(player),
-                                               level,
-                                               toTake,
-                                               toGive,
-                                               -possibleConfig.strength,
-                                               false);
+                final Integer storedValue = boards.get(possibleConfig.board);
+                final int moveValue;
+                if (storedValue != null) {
+                    cacheHits++;
+                    moveValue = storedValue;
+                } else {
+                    moveValue = evaluate(possibleConfig.board,
+                                         flip(player),
+                                         level,
+                                         toTake,
+                                         toGive,
+                                         -possibleConfig.strength,
+                                         false);
+                }
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -162,12 +172,13 @@ class MinMax {
                                                       isNullSearch);
             }
             Arrays.sort(configurations);
+            final HashMap<Board, Integer> boards = new HashMap<>();
             for (final Configuration possibleConfig : configurations) {
                 computations++;
                 if (nullSearchActivated && !isNullSearch && !isEndGame(possibleConfig)) {
                     final int nullMoveValue = -evaluate(possibleConfig.board,
                                                         player,
-                                                        level + 3,
+                                                        level + 2,
                                                         player == 1 ? toTake : toGive - 1,
                                                         player == 1 ? toTake + 1 : toGive,
                                                         possibleConfig.strength,
@@ -188,13 +199,21 @@ class MinMax {
                         }
                     }
                 }
-                final int moveValue = evaluate(possibleConfig.board,
-                                               flip(player),
-                                               level + 1,
-                                               toTake,
-                                               toGive,
-                                               -possibleConfig.strength,
-                                               isNullSearch);
+                final Integer storedValue = boards.get(possibleConfig.board);
+                final int moveValue;
+                if (storedValue != null) {
+                    cacheHits++;
+                    moveValue = storedValue;
+                } else {
+                    moveValue = evaluate(possibleConfig.board,
+                                         flip(player),
+                                         level + 1,
+                                         toTake,
+                                         toGive,
+                                         -possibleConfig.strength,
+                                         isNullSearch);
+                }
+                boards.put(possibleConfig.board, moveValue);
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
@@ -367,6 +386,7 @@ class Board {
     final Move moves[][];
     private static final int neighbours[][][][] = new int[ROWS][COLS][2][];
     private static final int jumpables[][][][] = new int[ROWS][COLS][2][];
+    private final int hashCode[];
 
     Board(final int[][] board) {
         this.board = board;
@@ -401,9 +421,10 @@ class Board {
                 }
             }
         }
+        this.hashCode = getHashCode();
     }
 
-    private Board(final int[][] board, int[] places, int options[], final Move[][] moves) {
+    private Board(final int[][] board, final int[] places, final int options[], final Move[][] moves) {
         this.board = new int[ROWS][COLS];
         this.places = new int[PLAYERS];
         this.options = new int[PLAYERS];
@@ -413,13 +434,21 @@ class Board {
         System.arraycopy(options, 0, this.options, 0, options.length);
         System.arraycopy(places, 0, this.places, 0, places.length);
         this.moves = new Move[PLAYERS][];
-        for (int i = 0; i < PLAYERS; i++) {
-            this.moves[i] = new Move[options[i]];
-            for (int j = 0; j < options[i]; j++) {
-                final Move move = moves[i][j];
-                this.moves[i][j] = new Move(move.startX, move.startY, move.x, move.y, move.player, move.isAJump);
+        for (int i = 1; i < PLAYERS; i++) {
+            this.moves[i] = new Move[moves[i].length];
+            System.arraycopy(moves[i], 0, this.moves[i], 0, options[i]);
+        }
+        this.hashCode = getHashCode();
+    }
+
+    private int[] getHashCode() {
+        int hashCode[] = new int[3];
+        for (int box = 0; box < hashCode.length; box++) {
+            for (int i = 0; i < 14; i++) {
+                hashCode[box] |= board[(box << 1) + i / COLS][i % COLS] << (i << 1);
             }
         }
+        return hashCode;
     }
 
     public Board undo(final Move move) {
@@ -427,14 +456,29 @@ class Board {
     }
 
     public Board play(final Move move) {
+        final int removeToHere[][] = new int[2][ROWS * COLS];
+        final int removeFromHere[][] = new int[2][ROWS * COLS];
+        final int addConnectionsToHere[][] = new int[2][ROWS * COLS];
+        final int addConnectionsToElsewhere[][] = new int[2][ROWS * COLS];
         if (move.isAJump) {
             board[move.startX][move.startY] = 0;
+            places[move.player]--;
+            //remove all connections from here to elsewhere
+            //add all connections within range to this point
         }
+        final int opponent = MinMax.flip(move.player);
         board[move.x][move.y] = move.player;
+        places[move.player]++;
+        //add all connections from this point to elsewhere
+        //remove all connections to here
         final int[][] neighbour = neighbours[move.x][move.y];
         for (int i = 0; i < neighbour[0].length; i++) {
-            if (board[neighbour[0][i]][neighbour[1][i]] != 0) {
+            if (board[neighbour[0][i]][neighbour[1][i]] == opponent) {
+                places[opponent]--;
                 board[neighbour[0][i]][neighbour[1][i]] = move.player;
+                places[move.player]++;
+                //remove all connections from here to elsewhere
+                //add all connections from this point to elsewhere
             }
         }
         return new Board(board);
@@ -450,7 +494,7 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        return places[player] - places[MinMax.flip(player)];
+        return (isTerminated(player) ? 100 : 1) * places[player] - places[MinMax.flip(player)];
     }
 
     public static void setThoseWithinSight() {
@@ -558,6 +602,19 @@ class Board {
             this.x = x;
             this.y = y;
         }
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final Board board = (Board) o;
+        return hashCode[0] == board.hashCode[0] && hashCode[1] == board.hashCode[1] && hashCode[2] == board.hashCode[2];
+    }
+
+    @Override
+    public int hashCode() {
+        return 961 * hashCode[0] + 31 * hashCode[1] + hashCode[2];
     }
 
     public Board getCopy() {
