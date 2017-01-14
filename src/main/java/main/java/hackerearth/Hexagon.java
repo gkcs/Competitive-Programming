@@ -459,16 +459,32 @@ class Board {
         final int removeToHere[][] = new int[2][ROWS * COLS];
         final int removeFromHere[][] = new int[2][ROWS * COLS];
         final int addConnectionsToHere[][] = new int[2][ROWS * COLS];
-        final int addConnectionsToElsewhere[][] = new int[2][ROWS * COLS];
+        final int addConnectionsFromHere[][] = new int[2][ROWS * COLS];
+        int removeToHereCount = 0,
+                removeFromHereCount = 0,
+                addConnectionsToHereCount = 0,
+                addConnectionsFromHereCount = 0;
         if (move.isAJump) {
             board[move.startX][move.startY] = 0;
             places[move.player]--;
+            removeFromHere[0][removeFromHereCount] = move.startX;
+            removeFromHere[1][removeFromHereCount] = move.startY;
+            removeFromHereCount++;
+            addConnectionsToHere[0][addConnectionsToHereCount] = move.startX;
+            addConnectionsToHere[1][addConnectionsToHereCount] = move.startY;
+            addConnectionsToHereCount++;
             //remove all connections from here to elsewhere
             //add all connections within range to this point
         }
         final int opponent = MinMax.flip(move.player);
         board[move.x][move.y] = move.player;
         places[move.player]++;
+        addConnectionsFromHere[0][addConnectionsFromHereCount] = move.x;
+        addConnectionsFromHere[1][addConnectionsFromHereCount] = move.y;
+        addConnectionsFromHereCount++;
+        removeToHere[0][removeToHereCount] = move.x;
+        removeToHere[1][removeToHereCount] = move.y;
+        removeToHereCount++;
         //add all connections from this point to elsewhere
         //remove all connections to here
         final int[][] neighbour = neighbours[move.x][move.y];
@@ -477,11 +493,98 @@ class Board {
                 places[opponent]--;
                 board[neighbour[0][i]][neighbour[1][i]] = move.player;
                 places[move.player]++;
+                removeFromHere[0][removeFromHereCount] = neighbour[0][i];
+                removeFromHere[1][removeFromHereCount] = neighbour[1][i];
+                removeFromHereCount++;
+                addConnectionsFromHere[0][addConnectionsFromHereCount] = neighbour[0][i];
+                addConnectionsFromHere[1][addConnectionsFromHereCount] = neighbour[1][i];
+                addConnectionsFromHereCount++;
                 //remove all connections from here to elsewhere
                 //add all connections from this point to elsewhere
             }
         }
-        return new Board(board);
+        final List<Move> distinctMoves[] = new List[PLAYERS];
+        for (int i = 0; i < PLAYERS; i++) {
+            distinctMoves[i] = new ArrayList<>();
+        }
+        for (int i = 1; i < PLAYERS; i++) {
+            for (int j = 0; j < options[i]; j++) {
+                distinctMoves[i].add(moves[i][j]);
+            }
+        }
+        for (int i = 1; i < PLAYERS; i++) {
+            for (int j = 0; j < removeFromHereCount; j++) {
+                final int fJ = j;
+                distinctMoves[i].removeIf(moveToBeDeleted -> moveToBeDeleted.startX == removeFromHere[0][fJ]
+                        && moveToBeDeleted.startY == removeFromHere[1][fJ]);
+            }
+            for (int j = 0; j < removeToHereCount; j++) {
+                final int fJ = j;
+                distinctMoves[i].removeIf(moveToBeDeleted -> moveToBeDeleted.x == removeToHere[0][fJ]
+                        && moveToBeDeleted.y == removeToHere[1][fJ]);
+            }
+        }
+        for (int q = 0; q < addConnectionsToHereCount; q++) {
+            final int i = addConnectionsToHere[0][q];
+            final int j = addConnectionsToHere[1][q];
+            final int[][] nearNeighbour = neighbours[i][j];
+            for (int k = 0; k < nearNeighbour[0].length; k++) {
+                final int currentPlayer = board[nearNeighbour[0][k]][nearNeighbour[1][k]];
+                if (currentPlayer != 0) {
+                    distinctMoves[currentPlayer].add(new Move(nearNeighbour[0][k],
+                                                              nearNeighbour[1][k],
+                                                              i,
+                                                              j,
+                                                              currentPlayer,
+                                                              false));
+                }
+            }
+            final int[][] extendedNeighbour = jumpables[i][j];
+            for (int k = 0; k < extendedNeighbour[0].length; k++) {
+                final int currentPlayer = board[extendedNeighbour[0][k]][extendedNeighbour[1][k]];
+                if (currentPlayer != 0) {
+                    distinctMoves[currentPlayer].add(new Move(extendedNeighbour[0][k],
+                                                              extendedNeighbour[1][k],
+                                                              i,
+                                                              j,
+                                                              currentPlayer,
+                                                              true));
+                }
+            }
+        }
+        for (int q = 0; q < addConnectionsFromHereCount; q++) {
+            final int i = addConnectionsFromHere[0][q];
+            final int j = addConnectionsFromHere[1][q];
+            final int[][] nearNeighbour = neighbours[i][j];
+            for (int k = 0; k < nearNeighbour[0].length; k++) {
+                if (board[nearNeighbour[0][k]][nearNeighbour[1][k]] == 0) {
+                    distinctMoves[move.player].add(new Move(i,
+                                                            j,
+                                                            nearNeighbour[0][k],
+                                                            nearNeighbour[1][k],
+                                                            move.player,
+                                                            false));
+                }
+            }
+            final int[][] extendedNeighbour = jumpables[i][j];
+            for (int k = 0; k < extendedNeighbour[0].length; k++) {
+                if (board[extendedNeighbour[0][k]][extendedNeighbour[1][k]] == 0) {
+                    distinctMoves[move.player].add(new Move(i,
+                                                            j,
+                                                            extendedNeighbour[0][k],
+                                                            extendedNeighbour[1][k],
+                                                            move.player,
+                                                            true));
+                }
+            }
+        }
+        for (int i = 1; i < PLAYERS; i++) {
+            options[i] = distinctMoves[i].size();
+            for (int j = 0; j < options[i]; j++) {
+                moves[i][j] = distinctMoves[i].get(j);
+            }
+        }
+        return this;
     }
 
     public boolean isTerminated(final int player) {
@@ -494,7 +597,7 @@ class Board {
     }
 
     int heuristicValue(final int player) {
-        return (isTerminated(player) ? 100 : 1) * places[player] - places[MinMax.flip(player)];
+        return (isTerminated(player) ? 100 : 1) * (places[player] - places[MinMax.flip(player)]);
     }
 
     public static void setThoseWithinSight() {
