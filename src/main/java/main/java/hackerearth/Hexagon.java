@@ -49,7 +49,7 @@ class MinMax {
         if (board.places[0] == 0) {
             throw new RuntimeException("No possible moves");
         }
-        startConfigs = new Configuration[board.moves[player].length];
+        startConfigs = new Configuration[board.options[player]];
         for (int i = 0; i < board.places[0]; i++) {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
         }
@@ -159,7 +159,7 @@ class MinMax {
         } else if (level >= depth || currentDepth + level > TERMINAL_DEPTH) {
             max = heuristicValue;
         } else {
-            final Configuration[] configurations = new Configuration[board.moves[player].length];
+            final Configuration[] configurations = new Configuration[board.options[player]];
             for (int i = 0; i < configurations.length; i++) {
                 configurations[i] = new Configuration(board.moves[player][i],
                                                       board,
@@ -275,8 +275,8 @@ class MinMax {
                               final boolean resultsFromNullSearch) {
             this.board = board.getCopy().play(move);
             if (!resultsFromNullSearch
-                    && (killerMoves[level][0].equals(move)
-                    || killerMoves[level][1].equals(move))) {
+                    && (move.equals(killerMoves[level][0])
+                    || move.equals(killerMoves[level][1]))) {
                 killer = true;
             } else {
                 this.strength = board.heuristicValue(move.player);
@@ -411,8 +411,8 @@ class Board {
         System.arraycopy(places, 0, this.places, 0, places.length);
         this.moves = new Move[PLAYERS][];
         for (int i = 0; i < PLAYERS; i++) {
-            this.moves[i] = new Move[moves.length];
-            for (int j = 0; j < this.moves[i].length; j++) {
+            this.moves[i] = new Move[options[i]];
+            for (int j = 0; j < options[i]; j++) {
                 final Move move = moves[i][j];
                 this.moves[i][j] = new Move(move.startX, move.startY, move.x, move.y, move.player, move.isAJump);
             }
