@@ -151,11 +151,8 @@ class MinMax {
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             throw new TimeoutException("Time out...");
         }
-        final Integer terminalValue;
-        if ((terminalValue = board.terminalValue(player)) != 0) {
-            max += terminalValue < 0 ? level : -level;
-        } else if (level >= depth || currentDepth + level > TERMINAL_DEPTH) {
-            max = heuristicValue;
+        if (board.isTerminated(player) || level >= depth || currentDepth + level > TERMINAL_DEPTH) {
+            max += heuristicValue;
         } else {
             final Configuration[] configurations = new Configuration[board.options[player]];
             for (int i = 0; i < configurations.length; i++) {
@@ -443,15 +440,8 @@ class Board {
         return new Board(board);
     }
 
-    public Integer terminalValue(final int player) {
-        final int opponent = MinMax.flip(player);
-        if (places[player] == 0) {
-            return MinMax.MIN_VALUE;
-        } else if (places[opponent] == 0) {
-            return MinMax.MAX_VALUE;
-        } else {
-            return 0;
-        }
+    public boolean isTerminated(final int player) {
+        return options[player] == 0;
     }
 
     @Override
@@ -469,24 +459,38 @@ class Board {
             for (int j = 0; j < COLS; j++) {
                 int count = 0;
                 if (i > 0) {
-                    if (j > 0) {
-                        temps[0][count] = i - 1;
-                        temps[1][count] = j - 1;
-                        count++;
-                    }
                     temps[0][count] = i - 1;
                     temps[1][count] = j;
                     count++;
-                    if (j < COLS - 1) {
-                        temps[0][count] = i - 1;
-                        temps[1][count] = j + 1;
-                        count++;
+                    if (j % 2 == 0) {
+                        if (j > 0) {
+                            temps[0][count] = i - 1;
+                            temps[1][count] = j - 1;
+                            count++;
+                        }
+                        if (j < COLS - 1) {
+                            temps[0][count] = i - 1;
+                            temps[1][count] = j + 1;
+                            count++;
+                        }
                     }
                 }
                 if (i < ROWS - 1) {
                     temps[0][count] = i + 1;
                     temps[1][count] = j;
                     count++;
+                    if (j % 2 == 1) {
+                        if (j > 0) {
+                            temps[0][count] = i + 1;
+                            temps[1][count] = j - 1;
+                            count++;
+                        }
+                        if (j < COLS - 1) {
+                            temps[0][count] = i + 1;
+                            temps[1][count] = j + 1;
+                            count++;
+                        }
+                    }
                 }
                 if (j > 0) {
                     temps[0][count] = i;
