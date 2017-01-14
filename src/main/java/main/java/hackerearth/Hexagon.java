@@ -26,7 +26,7 @@ public class Hexagon {
 
 class MinMax {
     private static final int MAX_DEPTH = 60, TERMINAL_DEPTH = 100;
-    public static int TIME_OUT = 1280;
+    public static int TIME_OUT = 330;
     public int computations = 0, depth = 4, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -50,7 +50,7 @@ class MinMax {
             throw new RuntimeException("No possible moves");
         }
         startConfigs = new Configuration[board.options[player]];
-        for (int i = 0; i < board.places[0]; i++) {
+        for (int i = 0; i < startConfigs.length; i++) {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
         }
         Arrays.sort(startConfigs);
@@ -303,6 +303,8 @@ class MinMax {
             return "Configuration{" +
                     "move=" + move +
                     ", board=" + board +
+                    ", strength=" + strength +
+                    ", killer=" + killer +
                     '}';
         }
     }
@@ -344,7 +346,7 @@ class Move {
     }
 
     String describe() {
-        return x + " " + y;
+        return startX + " " + startY + "\n" + x + " " + y;
     }
 
     @Override
@@ -404,9 +406,12 @@ class Board {
     }
 
     private Board(final int[][] board, int[] places, int options[], final Move[][] moves) {
-        this.board = board;
+        this.board = new int[ROWS][COLS];
         this.places = new int[PLAYERS];
         this.options = new int[PLAYERS];
+        for (int i = 0; i < board.length; i++) {
+            System.arraycopy(board[i], 0, this.board[i], 0, board[i].length);
+        }
         System.arraycopy(options, 0, this.options, 0, options.length);
         System.arraycopy(places, 0, this.places, 0, places.length);
         this.moves = new Move[PLAYERS][];
