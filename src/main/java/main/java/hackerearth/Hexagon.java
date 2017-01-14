@@ -35,7 +35,7 @@ class MinMax {
     private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
-    private static final boolean nullSearchActivated = true;
+    private static final boolean nullSearchActivated = false;
     private final int currentDepth;
     private boolean timeOut;
 
@@ -293,8 +293,9 @@ class MinMax {
                 return +1;
             } else if (killer) {
                 return -1;
+            } else {
+                return o.strength - strength;
             }
-            return o.strength - strength;
         }
 
         @Override
@@ -316,6 +317,7 @@ class MinMax {
 }
 
 class Move {
+    public static final int PRIME = 31;
     final int startX, startY, x, y, player;
     final boolean isAJump;
 
@@ -338,12 +340,7 @@ class Move {
 
     @Override
     public int hashCode() {
-        int result = startX;
-        result = 31 * result + startY;
-        result = 31 * result + x;
-        result = 31 * result + y;
-        result = 31 * result + player;
-        return result;
+        return PRIME * (PRIME * (PRIME * (PRIME * startX + startY) + x) + y) + player;
     }
 
     String describe() {
@@ -381,7 +378,7 @@ class Board {
                 final int player = board[i][j];
                 places[player]++;
                 if (player > 0) {
-                    for (int k = 0; k < neighbours[i][j][0].length; i++) {
+                    for (int k = 0; k < neighbours[i][j][0].length; k++) {
                         if (board[neighbours[i][j][0][k]][neighbours[i][j][1][k]] == 0) {
                             moves[player][options[player]++] = new Move(i,
                                                                         j,
@@ -391,7 +388,7 @@ class Board {
                                                                         false);
                         }
                     }
-                    for (int k = 0; k < jumpables[i][j][0].length; i++) {
+                    for (int k = 0; k < jumpables[i][j][0].length; k++) {
                         if (board[jumpables[i][j][0][k]][jumpables[i][j][1][k]] == 0) {
                             moves[player][options[player]++] = new Move(i,
                                                                         j,
@@ -518,7 +515,7 @@ class Board {
                 }
                 jumpables[i][j][0] = new int[distantNeighbours.size()];
                 jumpables[i][j][1] = new int[distantNeighbours.size()];
-                List<Cell> distantNeighboursList = distantNeighbours.stream().collect(Collectors.toList());
+                final List<Cell> distantNeighboursList = distantNeighbours.stream().collect(Collectors.toList());
                 for (int k = 0; k < distantNeighboursList.size(); k++) {
                     jumpables[i][j][0][k] = distantNeighboursList.get(k).x;
                     jumpables[i][j][1][k] = distantNeighboursList.get(k).y;
@@ -540,9 +537,7 @@ class Board {
 
         @Override
         public int hashCode() {
-            int result = x;
-            result = 31 * result + y;
-            return result;
+            return 31 * x + y;
         }
 
         private Cell(final int x, final int y) {
