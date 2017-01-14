@@ -480,7 +480,7 @@ class Board {
                 }
                 if (j > 0) {
                     temps[0][count] = i;
-                    temps[1][count] = j + 1;
+                    temps[1][count] = j - 1;
                     count++;
                 }
                 if (j < COLS - 1) {
