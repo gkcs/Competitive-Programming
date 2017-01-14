@@ -152,7 +152,7 @@ class MinMax {
             throw new TimeoutException("Time out...");
         }
         if (board.isTerminated(player) || level >= depth || currentDepth + level > TERMINAL_DEPTH) {
-            max += heuristicValue;
+            max = heuristicValue;
         } else {
             final Configuration[] configurations = new Configuration[board.options[player]];
             for (int i = 0; i < configurations.length; i++) {
