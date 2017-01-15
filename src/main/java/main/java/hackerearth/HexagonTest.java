@@ -53,7 +53,7 @@ public class HexagonTest {
                 {0, 0, 0, 0, 0, 0, 0},
                 {2, 0, 0, 0, 0, 1, 1}
         };
-        //minMax.setTest(true);
+//        minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
         System.out.println(minMax.eval + " " + minMax.depth + " "
