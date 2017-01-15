@@ -339,9 +339,9 @@ class Move {
     final int player;
     final boolean isAJump;
 
-    public Move(final int startX, final int startY, final int x, final int y, final int player, final boolean isAJump) {
-        this.start = Board.CELLS[startX][startY];
-        this.end = Board.CELLS[x][y];
+    public Move(final Board.Cell start, final Board.Cell end, final int player, final boolean isAJump) {
+        this.start = start;
+        this.end = end;
         this.player = player;
         this.isAJump = isAJump;
     }
@@ -406,10 +406,8 @@ class Board {
                     boolean isStable = true;
                     for (final Cell aNeighbour : neighbour) {
                         if (board[aNeighbour.x][aNeighbour.y] == 0) {
-                            moves[player][options[player]++] = new Move(i,
-                                                                        j,
-                                                                        aNeighbour.x,
-                                                                        aNeighbour.y,
+                            moves[player][options[player]++] = new Move(CELLS[i][j],
+                                                                        aNeighbour,
                                                                         player,
                                                                         false);
                             isStable = false;
@@ -421,10 +419,8 @@ class Board {
                     final Cell[] extendedNeighbour = jumpables[i][j];
                     for (final Cell anExtendedNeighbour : extendedNeighbour) {
                         if (board[anExtendedNeighbour.x][anExtendedNeighbour.y] == 0) {
-                            moves[player][options[player]++] = new Move(i,
-                                                                        j,
-                                                                        anExtendedNeighbour.x,
-                                                                        anExtendedNeighbour.y,
+                            moves[player][options[player]++] = new Move(CELLS[i][j],
+                                                                        anExtendedNeighbour,
                                                                         player,
                                                                         true);
                         }
@@ -464,7 +460,7 @@ class Board {
     }
 
     private int[] getHashCode() {
-        int hashCode[] = new int[3];
+        final int hashCode[] = new int[3];
         for (int box = 0; box < hashCode.length; box++) {
             for (int i = 0; i < 14; i++) {
                 hashCode[box] |= board[(box << 1) + i / COLS][i % COLS] << (i << 1);
@@ -479,17 +475,13 @@ class Board {
 
     public Board play(final Move move) {
         if (move.isAJump) {
-            board[move.start.x][move.start.x] = 0;
-            places[move.player]--;
+            board[move.start.x][move.start.y] = 0;
         }
         final int opponent = MinMax.flip(move.player);
         board[move.end.x][move.end.y] = move.player;
-        places[move.player]++;
         for (final Cell aNeighbour : neighbours[move.end.x][move.end.y]) {
             if (board[aNeighbour.x][aNeighbour.y] == opponent) {
-                places[opponent]--;
                 board[aNeighbour.x][aNeighbour.y] = move.player;
-                places[move.player]++;
             }
         }
         return new Board(board);
@@ -501,10 +493,10 @@ class Board {
 
     int heuristicValue(final int player) {
         final int opponent = MinMax.flip(player);
-        return (int) Math.round(100 * (3 * (stable[player] - stable[opponent])
-                + 0.6 * (places[player] - places[opponent])
-                + 0.4 * (edges[player] - edges[opponent])
-                + 0.1 * (options[player] - options[opponent])));
+        return 300 * (stable[player] - stable[opponent])
+                + 60 * (places[player] - places[opponent])
+                + 40 * (edges[player] - edges[opponent])
+                + 10 * (options[player] - options[opponent]);
     }
 
     public static void setThoseWithinSightAndMoves() {
