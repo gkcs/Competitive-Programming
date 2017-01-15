@@ -41,11 +41,12 @@ class MinMax {
     private boolean timeOut;
 
     MinMax(final int currentDepth) {
+        Board.setCells();
+        Board.setThoseWithinSight();
         this.currentDepth = currentDepth;
     }
 
     public String iterativeSearchForBestMove(final int[][] game, final int player) {
-        Board.setThoseWithinSight();
         final Board board = new Board(game);
         if (board.places[player] == 0) {
             throw new RuntimeException("No possible moves");
@@ -387,8 +388,9 @@ class Board {
     final int stable[];
     final int edges[];
     final Move moves[][];
-    private static final int neighbours[][][][] = new int[ROWS][COLS][2][];
-    private static final int jumpables[][][][] = new int[ROWS][COLS][2][];
+    private static final Cell neighbours[][][] = new Cell[ROWS][COLS][];
+    private static final Cell jumpables[][][] = new Cell[ROWS][COLS][];
+    private static final Cell CELLS[][] = new Cell[ROWS][COLS];
     public final int[] hashCode;
 
     Board(final int[][] board) {
@@ -403,15 +405,15 @@ class Board {
                 final int player = board[i][j];
                 if (player != 0) {
                     places[player]++;
-                    final int[][] neighbour = neighbours[i][j];
-                    edges[player] = edges[player] + (6 - neighbour[0].length);
+                    final Cell[] neighbour = neighbours[i][j];
+                    edges[player] = edges[player] + (6 - neighbour.length);
                     boolean isStable = true;
-                    for (int k = 0; k < neighbour[0].length; k++) {
-                        if (board[neighbour[0][k]][neighbour[1][k]] == 0) {
+                    for (final Cell aNeighbour : neighbour) {
+                        if (board[aNeighbour.x][aNeighbour.y] == 0) {
                             moves[player][options[player]++] = new Move(i,
                                                                         j,
-                                                                        neighbour[0][k],
-                                                                        neighbour[1][k],
+                                                                        aNeighbour.x,
+                                                                        aNeighbour.y,
                                                                         player,
                                                                         false);
                             isStable = false;
@@ -420,13 +422,13 @@ class Board {
                     if (isStable) {
                         stable[player]++;
                     }
-                    int[][] extendedNeighbour = jumpables[i][j];
-                    for (int k = 0; k < extendedNeighbour[0].length; k++) {
-                        if (board[extendedNeighbour[0][k]][extendedNeighbour[1][k]] == 0) {
+                    final Cell[] extendedNeighbour = jumpables[i][j];
+                    for (final Cell anExtendedNeighbour : extendedNeighbour) {
+                        if (board[anExtendedNeighbour.x][anExtendedNeighbour.y] == 0) {
                             moves[player][options[player]++] = new Move(i,
                                                                         j,
-                                                                        extendedNeighbour[0][k],
-                                                                        extendedNeighbour[1][k],
+                                                                        anExtendedNeighbour.x,
+                                                                        anExtendedNeighbour.y,
                                                                         player,
                                                                         true);
                         }
@@ -487,11 +489,11 @@ class Board {
         final int opponent = MinMax.flip(move.player);
         board[move.x][move.y] = move.player;
         places[move.player]++;
-        final int[][] neighbour = neighbours[move.x][move.y];
-        for (int i = 0; i < neighbour[0].length; i++) {
-            if (board[neighbour[0][i]][neighbour[1][i]] == opponent) {
+        final Cell[] neighbour = neighbours[move.x][move.y];
+        for (final Cell aNeighbour : neighbour) {
+            if (board[aNeighbour.x][aNeighbour.y] == opponent) {
                 places[opponent]--;
-                board[neighbour[0][i]][neighbour[1][i]] = move.player;
+                board[aNeighbour.x][aNeighbour.y] = move.player;
                 places[move.player]++;
             }
         }
@@ -511,58 +513,49 @@ class Board {
     }
 
     public static void setThoseWithinSight() {
-        final int temps[][] = new int[2][6];
+        final Cell temps[] = new Cell[6];
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 int count = 0;
                 if (i > 0) {
-                    temps[0][count] = i - 1;
-                    temps[1][count] = j;
+                    temps[count] = CELLS[i - 1][j];
                     count++;
                     if (j % 2 == 0) {
                         if (j > 0) {
-                            temps[0][count] = i - 1;
-                            temps[1][count] = j - 1;
+                            temps[count] = CELLS[i - 1][j - 1];
                             count++;
                         }
                         if (j < COLS - 1) {
-                            temps[0][count] = i - 1;
-                            temps[1][count] = j + 1;
+                            temps[count] = CELLS[i - 1][j + 1];
                             count++;
                         }
                     }
                 }
                 if (i < ROWS - 1) {
-                    temps[0][count] = i + 1;
-                    temps[1][count] = j;
+                    temps[count] = CELLS[i + 1][j];
                     count++;
                     if (j % 2 == 1) {
                         if (j > 0) {
-                            temps[0][count] = i + 1;
-                            temps[1][count] = j - 1;
+                            temps[count] = CELLS[i + 1][j - 1];
                             count++;
                         }
                         if (j < COLS - 1) {
-                            temps[0][count] = i + 1;
-                            temps[1][count] = j + 1;
+                            temps[count] = CELLS[i + 1][j + 1];
                             count++;
                         }
                     }
                 }
                 if (j > 0) {
-                    temps[0][count] = i;
-                    temps[1][count] = j - 1;
+                    temps[count] = CELLS[i][j - 1];
                     count++;
                 }
                 if (j < COLS - 1) {
-                    temps[0][count] = i;
-                    temps[1][count] = j + 1;
+                    temps[count] = CELLS[i][j + 1];
                     count++;
                 }
-                neighbours[i][j][0] = new int[count];
-                neighbours[i][j][1] = new int[count];
-                System.arraycopy(temps[0], 0, neighbours[i][j][0], 0, count);
-                System.arraycopy(temps[1], 0, neighbours[i][j][1], 0, count);
+                neighbours[i][j] = new Cell[count];
+                System.arraycopy(temps, 0, neighbours[i][j], 0, count);
+                System.arraycopy(temps, 0, neighbours[i][j], 0, count);
             }
         }
 
@@ -570,27 +563,29 @@ class Board {
             for (int j = 0; j < COLS; j++) {
                 final Set<Cell> tooClose = new HashSet<>();
                 tooClose.add(new Cell(i, j));
-                for (int k = 0; k < neighbours[i][j][0].length; k++) {
-                    tooClose.add(new Cell(neighbours[i][j][0][k], neighbours[i][j][1][k]));
-                }
+                final Cell[] neighbour = neighbours[i][j];
+                Collections.addAll(tooClose, neighbour);
                 final Set<Cell> distantNeighbours = new HashSet<>();
-                for (int k = 0; k < neighbours[i][j][0].length; k++) {
-                    final int x = neighbours[i][j][0][k];
-                    final int y = neighbours[i][j][1][k];
-                    for (int l = 0; l < neighbours[x][y][0].length; l++) {
-                        final Cell current = new Cell(neighbours[x][y][0][l], neighbours[x][y][1][l]);
+                for (final Cell cell : neighbour) {
+                    for (final Cell current : neighbours[cell.x][cell.y]) {
                         if (!tooClose.contains(current)) {
                             distantNeighbours.add(current);
                         }
                     }
                 }
-                jumpables[i][j][0] = new int[distantNeighbours.size()];
-                jumpables[i][j][1] = new int[distantNeighbours.size()];
+                jumpables[i][j] = new Cell[distantNeighbours.size()];
                 final List<Cell> distantNeighboursList = distantNeighbours.stream().collect(Collectors.toList());
                 for (int k = 0; k < distantNeighboursList.size(); k++) {
-                    jumpables[i][j][0][k] = distantNeighboursList.get(k).x;
-                    jumpables[i][j][1][k] = distantNeighboursList.get(k).y;
+                    jumpables[i][j][k] = distantNeighboursList.get(k);
                 }
+            }
+        }
+    }
+
+    public static void setCells() {
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                CELLS[i][j] = new Cell(i, j);
             }
         }
     }
