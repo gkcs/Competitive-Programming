@@ -42,7 +42,7 @@ class MinMax {
 
     MinMax(final int currentDepth) {
         Board.setCells();
-        Board.setThoseWithinSight();
+        Board.setThoseWithinSightAndMoves();
         this.currentDepth = currentDepth;
     }
 
@@ -335,15 +335,13 @@ class MinMax {
 }
 
 class Move {
-    public static final int PRIME = 31;
-    final int startX, startY, x, y, player;
+    final Board.Cell start, end;
+    final int player;
     final boolean isAJump;
 
     public Move(final int startX, final int startY, final int x, final int y, final int player, final boolean isAJump) {
-        this.startX = startX;
-        this.startY = startY;
-        this.x = x;
-        this.y = y;
+        this.start = Board.CELLS[startX][startY];
+        this.end = Board.CELLS[x][y];
         this.player = player;
         this.isAJump = isAJump;
     }
@@ -353,25 +351,23 @@ class Move {
         if (this == o) return true;
         else if (o == null || getClass() != o.getClass()) return false;
         final Move move = (Move) o;
-        return startX == move.startX && startY == move.startY && x == move.x && y == move.y && player == move.player;
+        return start.equals(move.start) && end.equals(move.end) && player == move.player;
     }
 
     @Override
     public int hashCode() {
-        return PRIME * (PRIME * (PRIME * (PRIME * startX + startY) + x) + y) + player;
+        return 31 * (31 * start.hashCode() + end.hashCode()) + player;
     }
 
     String describe() {
-        return startX + " " + startY + "\n" + x + " " + y;
+        return start.describe() + "\n" + end.describe();
     }
 
     @Override
     public String toString() {
         return "Move{" +
-                "startX=" + startX +
-                ", startY=" + startY +
-                ", x=" + x +
-                ", y=" + y +
+                "start=" + start +
+                ", end=" + end +
                 ", player=" + player +
                 ", isAJump=" + isAJump +
                 '}';
@@ -390,13 +386,13 @@ class Board {
     final Move moves[][];
     private static final Cell neighbours[][][] = new Cell[ROWS][COLS][];
     private static final Cell jumpables[][][] = new Cell[ROWS][COLS][];
-    private static final Cell CELLS[][] = new Cell[ROWS][COLS];
+    public static final Cell CELLS[][] = new Cell[ROWS][COLS];
     public final int[] hashCode;
 
     Board(final int[][] board) {
         this.board = board;
         places = new int[PLAYERS];
-        moves = new Move[PLAYERS][710];
+        moves = new Move[PLAYERS][756];
         options = new int[PLAYERS];
         stable = new int[PLAYERS];
         edges = new int[PLAYERS];
@@ -483,14 +479,13 @@ class Board {
 
     public Board play(final Move move) {
         if (move.isAJump) {
-            board[move.startX][move.startY] = 0;
+            board[move.start.x][move.start.x] = 0;
             places[move.player]--;
         }
         final int opponent = MinMax.flip(move.player);
-        board[move.x][move.y] = move.player;
+        board[move.end.x][move.end.y] = move.player;
         places[move.player]++;
-        final Cell[] neighbour = neighbours[move.x][move.y];
-        for (final Cell aNeighbour : neighbour) {
+        for (final Cell aNeighbour : neighbours[move.end.x][move.end.y]) {
             if (board[aNeighbour.x][aNeighbour.y] == opponent) {
                 places[opponent]--;
                 board[aNeighbour.x][aNeighbour.y] = move.player;
@@ -512,7 +507,7 @@ class Board {
                 + 0.1 * (options[player] - options[opponent])));
     }
 
-    public static void setThoseWithinSight() {
+    public static void setThoseWithinSightAndMoves() {
         final Cell temps[] = new Cell[6];
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
@@ -590,7 +585,7 @@ class Board {
         }
     }
 
-    private static class Cell {
+    public static class Cell {
         final int x, y;
 
         @Override
@@ -609,6 +604,15 @@ class Board {
         private Cell(final int x, final int y) {
             this.x = x;
             this.y = y;
+        }
+
+        public String describe() {
+            return x + " " + y;
+        }
+
+        @Override
+        public String toString() {
+            return describe();
         }
     }
 

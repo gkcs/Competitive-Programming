@@ -100,7 +100,7 @@ public class HexagonTest {
 
     @Test
     public void learnToAcceptThings() {
-        Board.setThoseWithinSight();
+        Board.setThoseWithinSightAndMoves();
         final int[][] game = new int[][]{
                 {2, 2, 2, 2, 1, 1, 2},
                 {1, 2, 2, 2, 2, 2, 2},
