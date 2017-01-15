@@ -22,8 +22,7 @@ public class HexagonTest {
         //minMax.setTest(true);
         final String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
         assertTrue(Math.abs(s.charAt(0) - s.charAt(4)) + Math.abs(s.charAt(2) - s.charAt(6)) < 2);
     }
 
@@ -41,8 +40,7 @@ public class HexagonTest {
         //minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
         assertTrue(Math.abs(s.charAt(0) - s.charAt(4)) + Math.abs(s.charAt(2) - s.charAt(6)) < 2);
     }
 
@@ -60,8 +58,7 @@ public class HexagonTest {
 //        minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
         assertTrue(Math.abs(s.charAt(0) - s.charAt(4)) + Math.abs(s.charAt(2) - s.charAt(6)) < 2);
     }
 
@@ -78,8 +75,7 @@ public class HexagonTest {
         }, 1);
         minMax.setTest(true);
         System.out.println(s);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
         assertTrue(Math.abs(s.charAt(0) - s.charAt(4)) + Math.abs(s.charAt(2) - s.charAt(6)) < 2);
     }
 
@@ -97,14 +93,14 @@ public class HexagonTest {
         //minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(game, 1);
         System.out.println(s);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
         assertNotEquals("3 1\n1 0", s);
     }
 
     @Test
     public void learnToAcceptThings() {
-        Board.setThoseWithinSightAndMoves();
+        Board.setCells();
+        Board.setThoseWithinSight();
         final int[][] game = new int[][]{
                 {2, 2, 2, 2, 1, 1, 2},
                 {1, 2, 2, 2, 2, 2, 2},
@@ -136,8 +132,7 @@ public class HexagonTest {
         };
         //minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(game, 2);
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
         System.out.println(s);
         assertNotEquals("5 6\n5 4", s);
     }

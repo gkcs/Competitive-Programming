@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 public class Hexagon {
@@ -19,14 +18,13 @@ public class Hexagon {
         }
         final MinMax minMax = new MinMax(Integer.parseInt(bufferedReader.readLine()));
         System.out.println(minMax.iterativeSearchForBestMove(board, Integer.parseInt(bufferedReader.readLine())));
-        System.out.println(minMax.eval + " " + minMax.depth + " "
-                                   + minMax.moves + " " + minMax.computations + " " + minMax.cacheHits);
+        minMax.metrics();
     }
 }
 
 class MinMax {
     public static final int MAX_DEPTH = 60, TERMINAL_DEPTH = 100;
-    public static int TIME_OUT = 1000;
+    public static int TIME_OUT = 800;
     public int computations = 0, depth = 3, moves = 0;
     public long eval = 0;
     static final int MAX_VALUE = 1000000, MIN_VALUE = -MAX_VALUE;
@@ -39,11 +37,15 @@ class MinMax {
     private final int currentDepth;
     public int cacheHits;
     private boolean timeOut;
+    private final Map<Board.BoardSituation, Configuration[]> configurationMap;
+    private int configHit;
+    private int configInsert;
 
     MinMax(final int currentDepth) {
         Board.setCells();
-        Board.setThoseWithinSightAndMoves();
+        Board.setThoseWithinSight();
         this.currentDepth = currentDepth;
+        configurationMap = new HashMap<>();
     }
 
     public String iterativeSearchForBestMove(final int[][] game, final int player) {
@@ -70,82 +72,81 @@ class MinMax {
         long toTake = MIN_VALUE, toGive = MAX_VALUE;
         int max = MIN_VALUE;
         Move bestMove = startConfigs[0].move;
-        try {
-            final Map<Board, Integer> boards = new HashMap<>();
-            for (final Configuration possibleConfig : startConfigs) {
-                final Integer storedValue = boards.get(possibleConfig.board);
-                final int moveValue;
-                if (storedValue != null) {
-                    cacheHits++;
-                    moveValue = storedValue;
-                } else {
-                    moveValue = evaluate(possibleConfig.board,
-                                         flip(player),
-                                         level,
-                                         toTake,
-                                         toGive,
-                                         -possibleConfig.strength,
-                                         false);
-                    boards.put(possibleConfig.board, moveValue);
-                }
-                possibleConfig.strength = moveValue;
-                if (player == 1) {
-                    if (toTake < moveValue) {
-                        toTake = moveValue;
-                    }
-                } else {
-                    if (toGive > -moveValue) {
-                        toGive = -moveValue;
-                    }
-                }
-                if (moveValue > max) {
-                    max = moveValue;
-                    bestMove = possibleConfig.move;
-                    if (Math.abs(max - MAX_VALUE) <= 100) {
-                        break;
-                    }
-                }
-                if (toTake >= toGive) {
-                    if (possibleConfig.killer) {
-                        if (killerMoves[level][0] == possibleConfig.move) {
-                            efficiency[level][0]++;
-                        } else {
-                            efficiency[level][1]++;
-                            if (efficiency[level][0] < efficiency[level][1]) {
-                                final Move temp = killerMoves[level][0];
-                                killerMoves[level][0] = killerMoves[level][1];
-                                killerMoves[level][1] = temp;
-                            }
-                        }
-                    } else {
-                        if (killerMoves[level][0] == null) {
-                            killerMoves[level][0] = possibleConfig.move;
-                            efficiency[level][0] = 1;
-                        } else if (killerMoves[level][1] == null) {
-                            killerMoves[level][1] = possibleConfig.move;
-                            efficiency[level][1] = 1;
-                        }
-                    }
+        final Map<Board, Integer> boards = new HashMap<>();
+        for (final Configuration possibleConfig : startConfigs) {
+            final Integer storedValue = boards.get(possibleConfig.board);
+            final int moveValue;
+            if (storedValue != null) {
+                cacheHits++;
+                moveValue = storedValue;
+            } else {
+                moveValue = evaluate(possibleConfig.board,
+                                     flip(player),
+                                     level,
+                                     toTake,
+                                     toGive,
+                                     -possibleConfig.strength,
+                                     false);
+                if (timeOut) {
                     break;
-                } else if (possibleConfig.killer) {
-                    if (killerMoves[level][0] == possibleConfig.move) {
-                        efficiency[level][0]--;
-                    } else {
-                        efficiency[level][1]--;
-                    }
-                    if (efficiency[level][0] < efficiency[level][1]) {
-                        final Move temp = killerMoves[level][0];
-                        killerMoves[level][0] = killerMoves[level][1];
-                        killerMoves[level][1] = temp;
-                    }
-                    if (efficiency[level][1] <= 0) {
-                        efficiency[level][1] = 0;
-                        killerMoves[level][1] = null;
-                    }
+                }
+                boards.put(possibleConfig.board, moveValue);
+            }
+            possibleConfig.strength = moveValue;
+            if (player == 1) {
+                if (toTake < moveValue) {
+                    toTake = moveValue;
+                }
+            } else {
+                if (toGive > -moveValue) {
+                    toGive = -moveValue;
                 }
             }
-        } catch (TimeoutException e) {
-            timeOut = true;
+            if (moveValue > max) {
+                max = moveValue;
+                bestMove = possibleConfig.move;
+                if (Math.abs(max - MAX_VALUE) <= 100) {
+                    break;
+                }
+            }
+            if (toTake >= toGive) {
+                if (possibleConfig.killer) {
+                    if (killerMoves[level][0] == possibleConfig.move) {
+                        efficiency[level][0]++;
+                    } else {
+                        efficiency[level][1]++;
+                        if (efficiency[level][0] < efficiency[level][1]) {
+                            final Move temp = killerMoves[level][0];
+                            killerMoves[level][0] = killerMoves[level][1];
+                            killerMoves[level][1] = temp;
+                        }
+                    }
+                } else {
+                    if (killerMoves[level][0] == null) {
+                        killerMoves[level][0] = possibleConfig.move;
+                        efficiency[level][0] = 1;
+                    } else if (killerMoves[level][1] == null) {
+                        killerMoves[level][1] = possibleConfig.move;
+                        efficiency[level][1] = 1;
+                    }
+                }
+                break;
+            } else if (possibleConfig.killer) {
+                if (killerMoves[level][0] == possibleConfig.move) {
+                    efficiency[level][0]--;
+                } else {
+                    efficiency[level][1]--;
+                }
+                if (efficiency[level][0] < efficiency[level][1]) {
+                    final Move temp = killerMoves[level][0];
+                    killerMoves[level][0] = killerMoves[level][1];
+                    killerMoves[level][1] = temp;
+                }
+                if (efficiency[level][1] <= 0) {
+                    efficiency[level][1] = 0;
+                    killerMoves[level][1] = null;
+                }
+            }
         }
         Arrays.sort(startConfigs);
         return bestMove;
@@ -157,25 +158,37 @@ class MinMax {
                          final long a,
                          final long b,
                          final int heuristicValue,
-                         final boolean isNullSearch) throws TimeoutException {
+                         final boolean isNullSearch) {
         long toTake = a, toGive = b;
         int max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
-            throw new TimeoutException("Time out...");
+            timeOut = true;
+            return 0;
         }
         if (board.isTerminated(player, level, currentDepth)) {
             max = (board.places[player] - board.places[MinMax.flip(player)]) * MAX_VALUE;
         } else if (level >= depth) {
             max = heuristicValue;
         } else {
-            final Configuration[] configurations = new Configuration[board.options[player]];
-            for (int i = 0; i < configurations.length; i++) {
-                configurations[i] = new Configuration(board.moves[player][i],
-                                                      board,
-                                                      level,
-                                                      isNullSearch);
+            final Board.BoardSituation boardSituation = new Board.BoardSituation(board, player);
+            final Configuration[] configurations;
+            if (level < 2 && configurationMap.containsKey(boardSituation)) {
+                configurations = configurationMap.get(boardSituation);
+                configHit++;
+            } else {
+                configurations = new Configuration[board.options[player]];
+                for (int i = 0; i < configurations.length; i++) {
+                    configurations[i] = new Configuration(board.moves[player][i],
+                                                          board,
+                                                          level,
+                                                          isNullSearch);
+                }
+                configInsert++;
+                Arrays.sort(configurations);
+                if (level < 2) {
+                    configurationMap.put(boardSituation, configurations);
+                }
             }
-            Arrays.sort(configurations);
             final Map<Board, Integer> boards = new HashMap<>();
             for (final Configuration possibleConfig : configurations) {
                 computations++;
@@ -275,6 +288,10 @@ class MinMax {
             }
         }
         return -max;
+    }
+
+    public void metrics() {
+        System.out.println(eval + " " + depth + " " + moves + " " + computations + " " + cacheHits + " " + configHit + " " + configInsert);
     }
 
     private boolean isEndGame(final int[] stableSquares) {
@@ -499,7 +516,7 @@ class Board {
                 + 10 * (options[player] - options[opponent]);
     }
 
-    public static void setThoseWithinSightAndMoves() {
+    public static void setThoseWithinSight() {
         final Cell temps[] = new Cell[6];
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
@@ -631,5 +648,30 @@ class Board {
                 "board=" + Arrays.deepToString(board) +
                 ", hashCode=" + Arrays.toString(hashCode) +
                 '}';
+    }
+
+    public static class BoardSituation {
+        private final Board board;
+        private final int player;
+
+        public BoardSituation(final Board board, final int player) {
+            this.board = board;
+            this.player = player;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            final BoardSituation that = (BoardSituation) o;
+            return player == that.player && board.equals(that.board);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = board.hashCode();
+            result = 31 * result + player;
+            return result;
+        }
     }
 }
