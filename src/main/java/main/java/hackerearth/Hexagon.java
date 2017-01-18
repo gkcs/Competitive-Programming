@@ -18,10 +18,13 @@ public class Hexagon {
             }
         }
         final MinMax minMax = new MinMax(Integer.parseInt(bufferedReader.readLine()));
+        final int mb = 1048576;
         System.out.println(minMax.iterativeSearchForBestMove(
                 Integer.parseInt(bufferedReader.readLine()), new Board(board)).describe());
+        System.gc();
         minMax.metrics();
-        System.out.println(System.nanoTime() - startTime);
+        System.out.println((System.nanoTime() - startTime) / 1000000000d + " " + Runtime.getRuntime().maxMemory() / mb
+                                   + " " + Runtime.getRuntime().freeMemory() / mb + " " + Runtime.getRuntime().totalMemory() / mb);
     }
 }
 
@@ -45,7 +48,7 @@ class MinMax {
     private final Map<Board.BoardSituation, Configuration[]> configurationMap;
     private int configHit;
     private int configInsert;
-    private final PositionCache positionCache;
+    private PositionCache positionCache;
 
     MinMax(final int currentDepth) {
         Board.setUp();
@@ -62,6 +65,7 @@ class MinMax {
         if (positionCache.containsPosition(new Board.BoardSituation(board, player))) {
             return positionCache.get(new Board.BoardSituation(board, player));
         }
+        positionCache = null;
         startConfigs = new Configuration[board.options[player]];
         for (int i = 0; i < startConfigs.length; i++) {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
@@ -408,8 +412,8 @@ class Board {
     private static final int COLS = 7;
     private static final int PLAYERS = 3;
     final byte[][] board;
-    byte places[];
-    int options[];
+    final byte places[];
+    final int options[];
     byte stable[];
     byte edges[];
     Move moves[][];
@@ -422,7 +426,7 @@ class Board {
     public static void setUp() {
         Board.setCells();
         Board.setThoseWithinSight();
-        final int[] weights = new int[20];
+        final int[] weights = new int[4];
         weights[0] = 300;
         weights[1] = 60;
         weights[2] = 20;
@@ -516,16 +520,18 @@ class Board {
 
     public int heuristicValue(final int player) {
         final int opponent = MinMax.flip(player);
-        final double params[] = new double[4];
+        final int params[] = new int[4];
         //todo Divide by sum
         params[0] = stable[player] - stable[opponent];
         params[1] = places[player] - places[opponent];
         params[2] = edges[player] - edges[opponent];
         params[3] = options[player] - options[opponent];
-        return (int) (weights[0] * params[0]
+        stable = null;
+        edges = null;
+        return weights[0] * params[0]
                 + weights[1] * params[1]
                 + weights[2] * params[2]
-                + weights[3] * params[3]);
+                + weights[3] * params[3];
     }
 
     private static void setThoseWithinSight() {
