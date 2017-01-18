@@ -29,6 +29,7 @@ public class HexagonTest {
     @Test
     public void doNotJumpLikeAMoron() {
         final MinMax minMax = new MinMax(0);
+        MinMax.MAX_DEPTH = 6;
         final byte[][] game = new byte[][]{
                 {1, 1, 0, 0, 0, 2, 2},
                 {1, 0, 0, 0, 0, 0, 0},
@@ -37,7 +38,7 @@ public class HexagonTest {
                 {0, 2, 0, 0, 0, 0, 0},
                 {2, 0, 0, 0, 0, 0, 1}
         };
-        //minMax.setTest(true);
+        minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(1, new Board(game)).describe();
         System.out.println(s);
         minMax.metrics();
@@ -47,6 +48,7 @@ public class HexagonTest {
     @Test
     public void doNotJumpLikeAMoron2() {
         final MinMax minMax = new MinMax(0);
+        MinMax.MAX_DEPTH = 6;
         final byte[][] game = new byte[][]{
                 {1, 0, 0, 0, 0, 2, 2},
                 {0, 0, 0, 0, 0, 0, 0},
@@ -55,7 +57,7 @@ public class HexagonTest {
                 {0, 0, 0, 0, 0, 0, 0},
                 {2, 0, 0, 0, 0, 1, 1}
         };
-//        minMax.setTest(true);
+        minMax.setTest(true);
         String s = minMax.iterativeSearchForBestMove(1, new Board(game)).describe();
         System.out.println(s);
         minMax.metrics();
@@ -195,7 +197,7 @@ public class HexagonTest {
                 {2, 2, 1, 1, 1, 1, 1},
                 {0, 2, 2, 1, 1, 1, 1}
         };
-        minMax.setTest(true);
+        //minMax.setTest(true);
         Board board = new Board(game);
         System.out.println(minMax.isEndGame(board.stable, currentDepth));
         String s = minMax.iterativeSearchForBestMove(1, board).describe();
@@ -215,13 +217,39 @@ public class HexagonTest {
                 {2, 2, 1, 1, 1, 1, 1},
                 {0, 2, 2, 1, 1, 1, 1}
         };
-        minMax.setTest(true);
+        //minMax.setTest(true);
         Board original = new Board(game).play(new Move(Board.CELLS[1][6], Board.CELLS[0][4], (byte) 1, true));
 //        Board oneMove = original.play(new Move(Board.CELLS[0][6], Board.CELLS[1][6], (byte) 2, false));
 //        System.out.println(Arrays.deepToString(oneMove.board));
 //        Board twoMoves = oneMove.play(new Move(Board.CELLS[4][2], Board.CELLS[5][0], (byte) 1, true));
 //        System.out.println(Arrays.deepToString(twoMoves.board));
         String s = minMax.iterativeSearchForBestMove(2, original).describe();
+        System.out.println(s);
+        minMax.metrics();
+    }
+
+    /*
+    0 1 1 2 2 2 2
+2 2 1 2 2 0 0
+2 2 2 2 2 0 0
+1 1 2 1 2 0 0
+1 1 1 1 1 0 0
+2 1 1 0 0 0 2
+     */
+    @Test
+    public void playWell3() {
+        final MinMax minMax = new MinMax(46);
+        //MinMax.MAX_DEPTH = 7;
+        final byte[][] game = new byte[][]{
+                {0, 1, 1, 2, 2, 2, 2},
+                {2, 2, 1, 2, 2, 0, 0},
+                {2, 2, 2, 2, 2, 0, 0},
+                {1, 1, 2, 1, 2, 0, 0},
+                {1, 1, 1, 1, 1, 0, 0},
+                {2, 1, 1, 0, 0, 0, 2}
+        };
+        //minMax.setTest(true);
+        String s = minMax.iterativeSearchForBestMove(1, new Board(game)).describe();
         System.out.println(s);
         minMax.metrics();
     }

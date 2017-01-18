@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 public class Hexagon {
     public static void main(String[] args) throws IOException {
+        final long startTime = System.nanoTime();
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
         final byte[][] board = new byte[6][7];
         for (int i = 0; i < board.length; i++) {
@@ -20,13 +21,14 @@ public class Hexagon {
         System.out.println(minMax.iterativeSearchForBestMove(
                 Integer.parseInt(bufferedReader.readLine()), new Board(board)).describe());
         minMax.metrics();
+        System.out.println(System.nanoTime() - startTime);
     }
 }
 
 class MinMax {
     public static int MAX_DEPTH = 60;
     public static final int TERMINAL_DEPTH = 100;
-    public static int TIME_OUT = (int) Math.pow(10, 9);
+    public static int TIME_OUT = (int) (Math.pow(10, 8) * 9);
     private int computations = 0, depth = 3, moves = 0;
     public long eval;
     public static final int MAX_VALUE = 1000000;
@@ -80,80 +82,80 @@ class MinMax {
         int max = MIN_VALUE;
         Move bestMove = startConfigs[0].move;
         final Map<Board, Integer> boards = new HashMap<>();
-        for (final Configuration possibleConfig : startConfigs) {
-            final Integer storedValue = boards.get(possibleConfig.board);
-            final int moveValue;
-            if (storedValue != null) {
-                cacheHits++;
-                moveValue = storedValue;
-            } else {
-                moveValue = evaluate(possibleConfig.board,
-                                     flip(player),
-                                     level,
-                                     toTake,
-                                     toGive,
-                                     -possibleConfig.strength,
-                                     false);
-                if (timeOut) {
-                    break;
+        try {
+            for (final Configuration possibleConfig : startConfigs) {
+                final Integer storedValue = boards.get(possibleConfig.board);
+                final int moveValue;
+                if (storedValue != null) {
+                    cacheHits++;
+                    moveValue = storedValue;
+                } else {
+                    moveValue = evaluate(possibleConfig.board,
+                                         flip(player),
+                                         level,
+                                         toTake,
+                                         toGive,
+                                         -possibleConfig.strength,
+                                         false);
+                    boards.put(possibleConfig.board, moveValue);
                 }
-                boards.put(possibleConfig.board, moveValue);
-            }
-            possibleConfig.strength = moveValue;
-            if (player == 1) {
-                if (toTake < moveValue) {
-                    toTake = moveValue;
+                possibleConfig.strength = moveValue;
+                if (player == 1) {
+                    if (toTake < moveValue) {
+                        toTake = moveValue;
+                    }
+                } else {
+                    if (toGive > -moveValue) {
+                        toGive = -moveValue;
+                    }
                 }
-            } else {
-                if (toGive > -moveValue) {
-                    toGive = -moveValue;
+                if (moveValue > max) {
+                    max = moveValue;
+                    bestMove = possibleConfig.move;
+                    if (max == MAX_VALUE) {
+                        break;
+                    }
                 }
-            }
-            if (moveValue > max) {
-                max = moveValue;
-                bestMove = possibleConfig.move;
-                if (max == MAX_VALUE) {
-                    break;
-                }
-            }
-            if (toTake >= toGive) {
-                if (possibleConfig.killer) {
-                    if (killerMoves[level][0] == possibleConfig.move) {
-                        efficiency[level][0]++;
+                if (toTake >= toGive) {
+                    if (possibleConfig.killer) {
+                        if (killerMoves[level][0] == possibleConfig.move) {
+                            efficiency[level][0]++;
+                        } else {
+                            efficiency[level][1]++;
+                            if (efficiency[level][0] < efficiency[level][1]) {
+                                final Move temp = killerMoves[level][0];
+                                killerMoves[level][0] = killerMoves[level][1];
+                                killerMoves[level][1] = temp;
+                            }
+                        }
                     } else {
-                        efficiency[level][1]++;
-                        if (efficiency[level][0] < efficiency[level][1]) {
-                            final Move temp = killerMoves[level][0];
-                            killerMoves[level][0] = killerMoves[level][1];
-                            killerMoves[level][1] = temp;
+                        if (killerMoves[level][0] == null) {
+                            killerMoves[level][0] = possibleConfig.move;
+                            efficiency[level][0] = 1;
+                        } else if (killerMoves[level][1] == null) {
+                            killerMoves[level][1] = possibleConfig.move;
+                            efficiency[level][1] = 1;
                         }
                     }
-                } else {
-                    if (killerMoves[level][0] == null) {
-                        killerMoves[level][0] = possibleConfig.move;
-                        efficiency[level][0] = 1;
-                    } else if (killerMoves[level][1] == null) {
-                        killerMoves[level][1] = possibleConfig.move;
-                        efficiency[level][1] = 1;
+                    break;
+                } else if (possibleConfig.killer) {
+                    if (killerMoves[level][0] == possibleConfig.move) {
+                        efficiency[level][0]--;
+                    } else {
+                        efficiency[level][1]--;
+                    }
+                    if (efficiency[level][0] < efficiency[level][1]) {
+                        final Move temp = killerMoves[level][0];
+                        killerMoves[level][0] = killerMoves[level][1];
+                        killerMoves[level][1] = temp;
+                    }
+                    if (efficiency[level][1] <= 0) {
+                        efficiency[level][1] = 0;
+                        killerMoves[level][1] = null;
                     }
                 }
-                break;
-            } else if (possibleConfig.killer) {
-                if (killerMoves[level][0] == possibleConfig.move) {
-                    efficiency[level][0]--;
-                } else {
-                    efficiency[level][1]--;
-                }
-                if (efficiency[level][0] < efficiency[level][1]) {
-                    final Move temp = killerMoves[level][0];
-                    killerMoves[level][0] = killerMoves[level][1];
-                    killerMoves[level][1] = temp;
-                }
-                if (efficiency[level][1] <= 0) {
-                    efficiency[level][1] = 0;
-                    killerMoves[level][1] = null;
-                }
             }
+        } catch (Exception ignored) {
         }
         Arrays.sort(startConfigs);
         return bestMove;
@@ -170,7 +172,7 @@ class MinMax {
         int max = MIN_VALUE;
         if (!test && System.nanoTime() - startTime >= TIME_OUT) {
             timeOut = true;
-            return 0;
+            throw new RuntimeException();
         }
         if (board.isTerminated(player, level, currentDepth)) {
             max = (board.places[player] > board.places[MinMax.flip(player)]) ? MAX_VALUE
@@ -219,7 +221,7 @@ class MinMax {
                         }
                     } else {
                         if (-nullMoveValue >= toGive) {
-                            if (-nullMoveValue > max) {
+                            if (nullMoveValue > max) {
                                 max = nullMoveValue;
                             }
                             continue;
@@ -304,8 +306,8 @@ class MinMax {
         System.out.println(eval + " " + depth + " " + moves + " " + computations + " " + cacheHits + " " + configHit + " " + configInsert);
     }
 
-    public boolean isEndGame(final int[] stableSquares, final int depth) {
-        return stableSquares[1] + stableSquares[2] > 33 || depth > 50;
+    public boolean isEndGame(final byte[] stableSquares, final int depth) {
+        return stableSquares[1] + stableSquares[2] > 25 || depth > 45;
     }
 
     public class Configuration implements Comparable<Configuration> {
@@ -318,7 +320,7 @@ class MinMax {
                               final Board board,
                               final int level,
                               final boolean resultsFromNullSearch) {
-            this.board = board.getCopy().play(move);
+            this.board = board.play(move);
             if (!resultsFromNullSearch
                     && (move.equals(killerMoves[level][0])
                     || move.equals(killerMoves[level][1]))) {
@@ -406,15 +408,15 @@ class Board {
     private static final int COLS = 7;
     private static final int PLAYERS = 3;
     final byte[][] board;
-    final int places[];
-    final int options[];
-    final int stable[];
-    final int edges[];
-    final Move moves[][];
+    byte places[];
+    int options[];
+    byte stable[];
+    byte edges[];
+    Move moves[][];
     private static final Cell neighbours[][][] = new Cell[ROWS][COLS][];
     private static final Cell jumpables[][][] = new Cell[ROWS][COLS][];
     public static final Cell CELLS[][] = new Cell[ROWS][COLS];
-    public final int[] hashCode;
+    public int[] hashCode;
     private static int[] weights;
 
     public static void setUp() {
@@ -423,25 +425,27 @@ class Board {
         final int[] weights = new int[20];
         weights[0] = 300;
         weights[1] = 60;
-        weights[2] = 40;
+        weights[2] = 20;
         weights[3] = 10;
         Board.setWeights(weights);
     }
 
     Board(final byte[][] board) {
         this.board = board;
-        places = new int[PLAYERS];
-        moves = new Move[PLAYERS][756];
+        places = new byte[PLAYERS];
+        moves = new Move[PLAYERS][];
+        moves[1] = new Move[300];
+        moves[2] = new Move[300];
         options = new int[PLAYERS];
-        stable = new int[PLAYERS];
-        edges = new int[PLAYERS];
+        stable = new byte[PLAYERS];
+        edges = new byte[PLAYERS];
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 final byte player = board[i][j];
                 if (player != 0) {
                     places[player]++;
                     final Cell[] neighbour = neighbours[i][j];
-                    edges[player] = edges[player] + (6 - neighbour.length);
+                    edges[player] += 6 - neighbour.length;
                     boolean isStable = true;
                     for (final Cell aNeighbour : neighbour) {
                         if (board[aNeighbour.x][aNeighbour.y] == 0) {
@@ -470,34 +474,6 @@ class Board {
         this.hashCode = getHashCode();
     }
 
-    private Board(final byte[][] board,
-                  final int[] places,
-                  final int options[],
-                  final Move[][] moves,
-                  final int[] hashCode,
-                  final int[] stable,
-                  final int[] edges) {
-        this.stable = new int[PLAYERS];
-        this.edges = new int[PLAYERS];
-        this.board = new byte[ROWS][COLS];
-        this.places = new int[PLAYERS];
-        this.options = new int[PLAYERS];
-        this.hashCode = new int[hashCode.length];
-        for (int i = 0; i < ROWS; i++) {
-            System.arraycopy(board[i], 0, this.board[i], 0, COLS);
-        }
-        System.arraycopy(options, 0, this.options, 0, options.length);
-        System.arraycopy(places, 0, this.places, 0, places.length);
-        this.moves = new Move[PLAYERS][];
-        for (int i = 1; i < PLAYERS; i++) {
-            this.moves[i] = new Move[moves[i].length];
-            System.arraycopy(moves[i], 0, this.moves[i], 0, options[i]);
-        }
-        System.arraycopy(hashCode, 0, this.hashCode, 0, hashCode.length);
-        System.arraycopy(stable, 0, this.stable, 0, stable.length);
-        System.arraycopy(edges, 0, this.edges, 0, edges.length);
-    }
-
     public static void setWeights(final int[] weights) {
         Board.weights = weights;
     }
@@ -517,17 +493,21 @@ class Board {
     }
 
     public Board play(final Move move) {
+        final byte[][] bytes = new byte[ROWS][COLS];
+        for (int i = 0; i < ROWS; i++) {
+            System.arraycopy(board[i], 0, bytes[i], 0, COLS);
+        }
         if (move.isAJump) {
-            board[move.start.x][move.start.y] = 0;
+            bytes[move.start.x][move.start.y] = 0;
         }
         final int opponent = MinMax.flip(move.player);
-        board[move.end.x][move.end.y] = move.player;
+        bytes[move.end.x][move.end.y] = move.player;
         for (final Cell aNeighbour : neighbours[move.end.x][move.end.y]) {
-            if (board[aNeighbour.x][aNeighbour.y] == opponent) {
-                board[aNeighbour.x][aNeighbour.y] = move.player;
+            if (bytes[aNeighbour.x][aNeighbour.y] == opponent) {
+                bytes[aNeighbour.x][aNeighbour.y] = move.player;
             }
         }
-        return new Board(board);
+        return new Board(bytes);
     }
 
     public boolean isTerminated(final int player, final int level, final int currentDepth) {
@@ -670,10 +650,6 @@ class Board {
         return 961 * hashCode[0] + 31 * hashCode[1] + hashCode[2];
     }
 
-    public Board getCopy() {
-        return new Board(board, places, options, moves, hashCode, stable, edges);
-    }
-
     @Override
     public String toString() {
         return "Board{" +
@@ -808,6 +784,14 @@ class PositionCache {
                 {1, 1, 1, 0, 0, 0, 0},
                 {0, 0, 0, 0, 0, 2, 0},
                 {0, 0, 0, 0, 0, 0, 2}}), 2), new Move(Board.CELLS[1][3], Board.CELLS[2][3], (byte) 2, false));
+        cache.put(new Board.BoardSituation(new Board(new byte[][]{
+                {1, 0, 0, 0, 0, 2, 2},
+                {0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0},
+                {0, 0, 0, 0, 0, 0, 0},
+                {2, 0, 0, 0, 0, 1, 1}
+        }), 2), new Move(Board.CELLS[1][3], Board.CELLS[2][3], (byte) 2, false));
     }
 
     public boolean containsPosition(final Board.BoardSituation boardSituation) {
