@@ -316,7 +316,7 @@ class MinMax {
                 if (board.isASave(move)) {
                     strength += 1000;
                 }
-                strength -= Math.abs(3.5 - move.cell.y);
+                strength -= Math.abs(Board.COLS / 2.0 - move.cell.y);
                 killer = false;
             }
             this.move = move;
@@ -392,7 +392,7 @@ class Move {
 
 class Board {
     private static final int ROWS = 7;
-    private static final int COLS = 8;
+    public static final int COLS = 8;
     private static final int PLAYERS = 3;
     final byte[][] board;
     private final byte threes[];
