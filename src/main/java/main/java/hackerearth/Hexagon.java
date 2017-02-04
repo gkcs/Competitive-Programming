@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 public class Hexagon {
     public static void main(String[] args) throws IOException {
@@ -33,7 +34,7 @@ class MinMax {
     public static final int MAX_VALUE = 1000000;
     public static final int MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
-    private boolean test = true;
+    private boolean test;
     private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
@@ -147,7 +148,7 @@ class MinMax {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (TimeoutException ignored) {
         }
         Arrays.sort(startConfigs);
         return bestMove;
@@ -158,12 +159,12 @@ class MinMax {
                          final int level,
                          final long a,
                          final long b,
-                         final boolean isNullSearch) {
+                         final boolean isNullSearch) throws TimeoutException {
         long toTake = a, toGive = b;
         int max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             timeOut = true;
-            throw new RuntimeException();
+            throw new TimeoutException();
         }
         if (board.isTerminated()) {
             max = board.isTerminated == player ? MAX_VALUE : board.isTerminated == 0 ? 0 : MIN_VALUE;
@@ -172,7 +173,7 @@ class MinMax {
         } else {
             final Board.BoardSituation boardSituation = new Board.BoardSituation(board, player);
             final Configuration[] configurations;
-            if (configurationMap.containsKey(boardSituation)) {
+            if (level < 7 && configurationMap.containsKey(boardSituation)) {
                 configurations = configurationMap.get(boardSituation);
                 configHit++;
             } else {
@@ -183,10 +184,12 @@ class MinMax {
                                                           level,
                                                           isNullSearch);
                 }
-                Arrays.sort(configurations);
-                configInsert++;
-                configurationMap.put(boardSituation, configurations);
+                if (level < 7) {
+                    configInsert++;
+                    configurationMap.put(boardSituation, configurations);
+                }
             }
+            Arrays.sort(configurations);
             final Map<Board, Integer> boards = new HashMap<>();
             for (final Configuration possibleConfig : configurations) {
                 computations++;
@@ -227,6 +230,7 @@ class MinMax {
                                          isNullSearch);
                     boards.put(possibleConfig.board, moveValue);
                 }
+                possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
@@ -611,33 +615,37 @@ class Board {
 
     private int findRelevantThreats(final int player) {
         final int opponent = MinMax.flip(player);
-        int immediateThreats = 0;
-        for (final Move move : moves[player]) {
-            if (findStreaks(player, move.cell.x, move.cell.y)[4] > 0) {
-                return MinMax.MAX_VALUE;
-            } else if (findStreaks(opponent, move.cell.x, move.cell.y)[4] > 0) {
-                if (immediateThreats > 0) {
-                    return MinMax.MIN_VALUE;
-                } else {
-                    immediateThreats++;
-                }
-            }
-        }
+//        int immediateThreats = 0;
+//        for (int i = 0; i < options; i++) {
+//            final Move move = moves[player][i];
+//            if (findStreaks(player, move.cell.x, move.cell.y)[4] > 0) {
+//                return MinMax.MAX_VALUE;
+//            } else if (findStreaks(opponent, move.cell.x, move.cell.y)[4] > 0) {
+//                if (immediateThreats > 0) {
+//                    return MinMax.MIN_VALUE;
+//                } else {
+//                    immediateThreats++;
+//                }
+//            }
+//        }
         int threats = 0;
-        for (final Move move : moves[player]) {
-            for (int row = move.cell.x - 1; row >= 0; row--) {
-                final int streaks[] = findStreaks(player, row, move.cell.y);
-                final int other[] = findStreaks(opponent, row, move.cell.y);
-                if (streaks[4] > 0 && other[4] == 0) {
-                    threats++;
-                    break;
-                } else if (streaks[4] == 0 && other[4] > 0) {
-                    threats--;
-                    break;
+        for (int i = 0; i < options; i++) {
+            final Move move = moves[player][i];
+            if (move != null) {
+                for (int row = move.cell.x - 1; row >= 0; row--) {
+                    final int streaks[] = findStreaks(player, row, move.cell.y);
+                    final int other[] = findStreaks(opponent, row, move.cell.y);
+                    if (streaks[4] > 0 && other[4] == 0) {
+                        threats++;
+                        break;
+                    } else if (streaks[4] == 0 && other[4] > 0) {
+                        threats--;
+                        break;
+                    }
                 }
             }
         }
-        return threats;
+        return 1000 * threats;
 
     }
 
