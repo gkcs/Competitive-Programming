@@ -234,7 +234,7 @@ public class MinMax {
                             continue;
                         }
                     } else {
-                        if (nullMoveValue >= toGive) {
+                        if (-nullMoveValue >= toGive) {
                             if (nullMoveValue > max) {
                                 max = nullMoveValue;
                             }
