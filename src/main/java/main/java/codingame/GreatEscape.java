@@ -1,30 +1,38 @@
-package main.java.hackerearth;
+package main.java.codingame;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
-public class Hexagon {
-    public static void main(String[] args) throws IOException {
-        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
-        final byte[][] board = new byte[7][8];
-        for (int i = 0; i < board.length; i++) {
-            final String cols[] = bufferedReader.readLine().split(" ");
-            for (int j = 0; j < board[i].length; j++) {
-                board[i][j] = (byte) (cols[j].charAt(0) - '0');
+class GreatEscape {
+
+    public static void main(String args[]) throws IOException {
+        final InputReader br = new InputReader(System.in);
+        final int width = br.readInt();
+        final int height = br.readInt();
+        final int playerCount = br.readInt();
+        final int id = br.readInt();
+        while (true) {
+            for (int i = 0; i < playerCount; i++) {
+                final int x = br.readInt();
+                final int y = br.readInt();
+                final int wallsLeft = br.readInt();
             }
+            int wallCount = br.readInt();
+            for (int i = 0; i < wallCount; i++) {
+                final int wallX = br.readInt();
+                final int wallY = br.readInt();
+                final String wallOrientation = br.readString();
+            }
+            // action: LEFT, RIGHT, UP, DOWN or "putX putY putOrientation" to place a wall
+            System.out.println("RIGHT");
         }
-        final int player = Integer.parseInt(bufferedReader.readLine());
-        final MinMax minMax = new MinMax(900);
-        final int col = minMax.iterativeSearchForBestMove(player, new Board(board)).cell.y;
-        System.out.println(col);
-        minMax.metrics();
     }
 }
+
 
 class MinMax {
     public static int MAX_DEPTH = 60;
@@ -35,12 +43,12 @@ class MinMax {
     public static final int MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
     private boolean test;
-    private Configuration[] startConfigs;
+    private MinMax.Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
     private final boolean nullSearchActivated = true;
     private boolean timeOut;
-    private final Map<Board.BoardSituation, Configuration[]> configurationMap;
+    private final Map<Board.BoardSituation, MinMax.Configuration[]> configurationMap;
     private int configHit;
     private int configInsert;
 
@@ -55,9 +63,9 @@ class MinMax {
         if (board.options == 0) {
             throw new RuntimeException("No possible moves");
         }
-        startConfigs = new Configuration[board.options];
+        startConfigs = new MinMax.Configuration[board.options];
         for (int i = 0; i < startConfigs.length; i++) {
-            startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
+            startConfigs[i] = new MinMax.Configuration(board.moves[player][i], board, 0, false);
         }
         Arrays.sort(startConfigs);
         Move bestMove = startConfigs[0].move;
@@ -75,7 +83,7 @@ class MinMax {
         int max = MIN_VALUE;
         Move bestMove = startConfigs[0].move;
         try {
-            for (final Configuration possibleConfig : startConfigs) {
+            for (final MinMax.Configuration possibleConfig : startConfigs) {
                 final int moveValue = evaluate(possibleConfig.board,
                                                flip(player),
                                                0,
@@ -162,17 +170,17 @@ class MinMax {
             max = board.evaluatePosition(player);
         } else {
             final Board.BoardSituation boardSituation = new Board.BoardSituation(board, player);
-            final Configuration[] configurations;
+            final MinMax.Configuration[] configurations;
             if (level < 8 && configurationMap.containsKey(boardSituation)) {
                 configurations = configurationMap.get(boardSituation);
                 configHit++;
             } else {
-                configurations = new Configuration[board.options];
+                configurations = new MinMax.Configuration[board.options];
                 for (int i = 0; i < configurations.length; i++) {
-                    configurations[i] = new Configuration(board.moves[player][i],
-                                                          board,
-                                                          level,
-                                                          isNullSearch);
+                    configurations[i] = new MinMax.Configuration(board.moves[player][i],
+                                                                 board,
+                                                                 level,
+                                                                 isNullSearch);
                 }
                 if (level < 8) {
                     configInsert++;
@@ -180,7 +188,7 @@ class MinMax {
                 }
             }
             Arrays.sort(configurations);
-            for (final Configuration possibleConfig : configurations) {
+            for (final MinMax.Configuration possibleConfig : configurations) {
                 computations++;
                 if (nullSearchActivated && !isNullSearch && board.empty > 30 && level + 2 < depth) {
                     final int nullMoveValue = -evaluate(possibleConfig.board,
@@ -277,7 +285,7 @@ class MinMax {
         System.out.println(eval + " " + depth + " " + moves + " " + computations + " " + configHit + " " + configInsert);
     }
 
-    public class Configuration implements Comparable<Configuration> {
+    public class Configuration implements Comparable<MinMax.Configuration> {
         final Move move;
         final Board board;
         int strength;
@@ -304,7 +312,7 @@ class MinMax {
         }
 
         @Override
-        public int compareTo(Configuration o) {
+        public int compareTo(MinMax.Configuration o) {
             if (strength + o.strength >= 1000) {
                 return o.strength - strength;
             } else if (!killer && o.killer) {
@@ -584,7 +592,7 @@ class Board {
                 : isTerminated == 0
                 ? 0
                 : MinMax.MIN_VALUE
-                :  10 * (threes[player] - threes[MinMax.flip(player)]);
+                : evaluatePosition(player) + 10 * (threes[player] - threes[MinMax.flip(player)]);
     }
 
     public int evaluatePosition(final int player) {
@@ -626,7 +634,7 @@ class Board {
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 for (byte k = 0; k < PLAYERS; k++) {
-                    MOVES[i][j][k] = new Move(new Cell(i, j), k);
+                    MOVES[i][j][k] = new Move(new Board.Cell(i, j), k);
                 }
             }
         }
@@ -643,7 +651,7 @@ class Board {
         public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            final Cell cell = (Cell) o;
+            final Board.Cell cell = (Board.Cell) o;
             return x == cell.x && y == cell.y;
         }
 
@@ -706,7 +714,7 @@ class Board {
         public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            final BoardSituation that = (BoardSituation) o;
+            final Board.BoardSituation that = (Board.BoardSituation) o;
             return player == that.player && board[0] == that.board[0] && board[1] == that.board[1];
         }
 
@@ -714,5 +722,86 @@ class Board {
         public int hashCode() {
             return Long.hashCode(961 * board[0] + 31 * board[1] + player);
         }
+    }
+}
+
+class InputReader {
+    private InputStream stream;
+    private byte[] buf = new byte[1024];
+
+    private int curChar;
+
+    private int numChars;
+
+    public InputReader(InputStream stream) {
+        this.stream = stream;
+    }
+
+    public int read() {
+        if (numChars == -1)
+            throw new RuntimeException();
+        if (curChar >= numChars) {
+            curChar = 0;
+            try {
+                numChars = stream.read(buf);
+            } catch (IOException e) {
+                throw new RuntimeException();
+            }
+            if (numChars <= 0)
+                return -1;
+        }
+        return buf[curChar++];
+    }
+
+    public String readString() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        int c = read();
+        while (isSpaceChar(c))
+            c = read();
+        do {
+            stringBuilder.append(c);
+            c = read();
+        } while (!isSpaceChar(c));
+        return stringBuilder.toString();
+    }
+
+    public int readInt() {
+        int c = read();
+        while (isSpaceChar(c))
+            c = read();
+        int sgn = 1;
+        if (c == '-') {
+            sgn = -1;
+            c = read();
+        }
+        int res = 0;
+        do {
+            res *= 10;
+            res += c - '0';
+            c = read();
+        } while (!isSpaceChar(c));
+        return res * sgn;
+    }
+
+    public long readLong() {
+        int c = read();
+        while (isSpaceChar(c))
+            c = read();
+        int sgn = 1;
+        if (c == '-') {
+            sgn = -1;
+            c = read();
+        }
+        long res = 0;
+        do {
+            res *= 10;
+            res += c - '0';
+            c = read();
+        } while (!isSpaceChar(c));
+        return res * sgn;
+    }
+
+    public boolean isSpaceChar(int c) {
+        return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == -1;
     }
 }

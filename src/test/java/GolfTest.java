@@ -1,4 +1,3 @@
-import main.java.codingame.GolfCourse;
 import org.junit.Test;
 
 public class GolfTest {
@@ -10,8 +9,5 @@ public class GolfTest {
                 ".X.2.X".toCharArray(),
                 "......".toCharArray(),
                 "3..H..".toCharArray()};
-        System.out.println(GolfCourse.printRaw(grid));
-        final String run = GolfCourse.run(grid);
-        System.out.println(run);
     }
 }
