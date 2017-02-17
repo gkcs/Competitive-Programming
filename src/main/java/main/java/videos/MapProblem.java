@@ -5,23 +5,17 @@ import java.util.Map;
 
 public class MapProblem {
     public static void main(String[] args) {
-        final Map<String, MyObject> map = new HashMap<>();
-        map.put("jam", new MyObject("jammy", 23));
-        map.putIfAbsent("jam", new MyObject("YOLO", 25));
-        map.put("games", null);
-        System.out.println(map.get("jam"));
-        System.out.println(map.get("games"));
-        System.out.println(map.containsKey("jam"));
-        map.remove("games");
-        System.out.println(map.containsKey("games"));
+        final Map<MyObject, String> map = new HashMap<>();
+        map.put(new MyObject(2, 3), "Jammy");
+        map.put(new MyObject(3, 3), "YOLO");
+        System.out.println(map.get(new MyObject(3, 3)));
     }
 }
 
 class MyObject {
-    final String x;
-    final int y;
+    int x, y;
 
-    MyObject(final String x, final int y) {
+    public MyObject(final int x, final int y) {
         this.x = x;
         this.y = y;
     }
@@ -32,18 +26,18 @@ class MyObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         final MyObject myObject = (MyObject) o;
-        return y == myObject.y && x.equals(myObject.x);
+        return y == myObject.y && x == myObject.x;
     }
 
     @Override
     public int hashCode() {
-        return 31 * x.hashCode() + y;
+        return 31 * x + y;
     }
 
     @Override
     public String toString() {
         return "MyObject{" +
-                "x='" + x + '\'' +
+                "x=" + x +
                 ", y=" + y +
                 '}';
     }
