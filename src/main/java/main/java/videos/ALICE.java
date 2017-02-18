@@ -41,13 +41,24 @@ public class ALICE {
             }
         }
         final AntColony antColony = new AntColony(flowers, regrow, limit, DIMENSIONS, fences, startX, startY, penalty);
-        System.out.println(Arrays.stream(antColony.findBestTour()).map(Movement::toString).collect(Collectors.joining(
-                "\n")) + "\nEXIT");
+
+        flowers[startX][startY] = 0;
+        limit[startX][startY]--;
+        final Tour tour = antColony.bruteForceTour(startX,
+                                                   startY,
+                                                   flowers,
+                                                   new int[DIMENSIONS][DIMENSIONS],
+                                                   limit,
+                                                   0);
+        //System.out.println(tour.reward);
+        Collections.reverse(tour.moves);
+
+        System.out.println(tour.moves.stream().map(Movement::toString).collect(Collectors.joining("\n")) + "\nEXIT");
     }
 }
 
 class AntColony {
-    public static final int MAXIMUM_ANT_AGE = 7;
+    public static final int MAXIMUM_ANT_AGE = 1000;
     private final int[][] regrow, originalLimits, originalFlowers;
     private final double[][] pheromone;
     private final int DIMENSIONS;
@@ -58,7 +69,7 @@ class AntColony {
     private final Movement[][] MOVEMENTS;
     private final long startTime = System.currentTimeMillis();
     private final int neighbours[][][][];
-    private static final int ANT_COLONY_SIZE = 5;
+    private static final int ANT_COLONY_SIZE = 1000;
     private static final int TIME_OUT = 1000;
     private static final double evaporationCoefficient = 0.1;
 
@@ -93,14 +104,56 @@ class AntColony {
         pheromone = new double[DIMENSIONS][DIMENSIONS];
     }
 
-    public Movement[] findBestTour() {
-        List<Movement> bestTour = Collections.emptyList();
+    public Tour bruteForceTour(final int x,
+                               final int y,
+                               final int[][] flowersNow,
+                               final int[][] touchedNow,
+                               final int[][] limitNow,
+                               final int depth) {
+        Tour bestTour = new Tour(new ArrayList<>(), 0);
+        if (depth == 8) {
+            return new Tour(new ArrayList<>(), 0);
+        }
+        final int[][] flowers = new int[DIMENSIONS][DIMENSIONS],
+                touched = new int[DIMENSIONS][DIMENSIONS];
+        for (int i = 0; i < DIMENSIONS; i++) {
+            System.arraycopy(flowersNow[i], 0, flowers[i], 0, DIMENSIONS);
+        }
+        for (int i = 0; i < DIMENSIONS; i++) {
+            System.arraycopy(touchedNow[i], 0, touched[i], 0, DIMENSIONS);
+        }
+        long bestReward = 0;
+        for (int cell = 0; cell < neighbours[x][y][0].length; cell++) {
+            final int xToVisit = neighbours[x][y][0][cell], yToVisit = neighbours[x][y][1][cell];
+            if (limitNow[xToVisit][yToVisit] != 0) {
+                if (depth - touched[xToVisit][yToVisit] >= regrow[xToVisit][yToVisit]) {
+                    flowers[xToVisit][yToVisit] = originalFlowers[xToVisit][yToVisit];
+                }
+                flowers[xToVisit][yToVisit] = 0;
+                touched[xToVisit][yToVisit] = depth;
+                limitNow[xToVisit][yToVisit]--;
+                final Tour tour = bruteForceTour(xToVisit, yToVisit, flowersNow, touched, limitNow, depth + 1);
+                tour.reward = flowersNow[xToVisit][yToVisit] + tour.reward;
+                if (tour.reward > bestReward) {
+                    tour.moves.add(MOVEMENTS[x][y]);
+                    bestTour = tour;
+                }
+                flowers[xToVisit][yToVisit] = flowersNow[xToVisit][yToVisit];
+                touched[xToVisit][yToVisit] = touchedNow[xToVisit][yToVisit];
+                limitNow[xToVisit][yToVisit]++;
+            }
+        }
+        return bestTour;
+    }
+
+    public Tour findBestTour() {
+        Tour bestTour = new Tour(new ArrayList<>(), 0);
         long bestReward = 0;
         for (int ant = 0; ant < ANT_COLONY_SIZE && System.currentTimeMillis() - startTime < TIME_OUT; ant++) {
             final int limit[][] = new int[DIMENSIONS][DIMENSIONS];
             final int flowers[][] = new int[DIMENSIONS][DIMENSIONS];
             int x = startX, y = startY;
-            final List<Movement> tour = new ArrayList<>(MAXIMUM_ANT_AGE);
+            final Tour tour = new Tour(new ArrayList<>(MAXIMUM_ANT_AGE), 0);
             final Movement[] possibleMoves = new Movement[9];
             for (int i = 0; i < DIMENSIONS; i++) {
                 System.arraycopy(this.originalLimits[i], 0, limit[i], 0, DIMENSIONS);
@@ -109,7 +162,7 @@ class AntColony {
                 System.arraycopy(this.originalFlowers[i], 0, flowers[i], 0, DIMENSIONS);
             }
             final int touched[][] = new int[DIMENSIONS][DIMENSIONS];
-            long reward = flowers[startX][startY];
+            tour.reward = flowers[startX][startY];
             flowers[startX][startY] = 0;
             touched[startX][startY] = 0;
             limit[startX][startY]--;
@@ -128,8 +181,8 @@ class AntColony {
                     break;
                 } else {
                     final Movement move = findMove(flowers, possibleMoves, options, x, y);
-                    tour.add(move);
-                    reward = reward + flowers[move.x][move.y] - findPenalty(x, y, move.x, move.y);
+                    tour.moves.add(move);
+                    tour.reward = tour.reward + flowers[move.x][move.y] - findPenalty(x, y, move.x, move.y);
                     x = move.x;
                     y = move.y;
                     limit[x][y]--;
@@ -137,21 +190,20 @@ class AntColony {
                     touched[x][y] = age;
                 }
             }
-            for (final Movement movement : tour) {
+            for (final Movement movement : tour.moves) {
                 pheromone[movement.x][movement.y] +=
-                        (double) reward * flowers[movement.x][movement.y] / (DIMENSIONS * DIMENSIONS);
+                        (double) tour.reward * flowers[movement.x][movement.y] / (DIMENSIONS * DIMENSIONS);
             }
             for (int i = 0; i < DIMENSIONS; i++) {
                 for (int j = 0; j < DIMENSIONS; j++) {
                     pheromone[i][j] *= (1 - evaporationCoefficient);
                 }
             }
-            if (bestReward < reward) {
+            if (bestReward < tour.reward) {
                 bestTour = tour;
-                bestReward = reward;
             }
         }
-        return bestTour.toArray(new Movement[bestTour.size()]);
+        return bestTour;
     }
 
     private long findPenalty(final int startX, final int startY, final int endX, final int endY) {
@@ -278,6 +330,16 @@ class Fence implements Comparable<Fence> {
     }
 }
 
+class Tour {
+    final List<Movement> moves;
+    long reward;
+
+    Tour(final List<Movement> moves, final long reward) {
+        this.moves = moves;
+        this.reward = reward;
+    }
+}
+
 class Movement {
     final int x, y;
 
@@ -342,3 +404,14 @@ class InputReader {
         return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == -1;
     }
 }
+
+/*
+2 1 1 1 1
+1 2
+1 4
+2 2
+2 2
+1 2
+2 3
+2 2 2 2
+ */
