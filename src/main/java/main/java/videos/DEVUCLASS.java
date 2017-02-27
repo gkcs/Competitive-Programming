@@ -24,7 +24,6 @@ public class DEVUCLASS {
         for (char c : arrangement.toCharArray()) {
             if (c == 'B') {
                 b++;
-            } else {
                 g++;
             }
         }
