@@ -128,6 +128,7 @@ class Factory extends Entity {
     int player, cyborgs;
     final int production;
     final int[] distances;
+    final int sumOfDistances;
 
     public Factory(final int entityId,
                    final int player,
@@ -139,6 +140,11 @@ class Factory extends Entity {
         this.cyborgs = cyborgs;
         this.production = production;
         this.distances = distances;
+        sumOfDistances = Arrays.stream(distances).map(distance -> Board.MAX_TURNS / distance).sum();
+    }
+
+    public int utility() {
+        return sumOfDistances * production;
     }
 
     public int[][] plotHistogram(final List<Troop> troops, int remainingTurns) {
