@@ -74,7 +74,12 @@ class Game {
         final List<Move> allPossibleMoves = getAllPossibleMoves(player);
         int bestScore = Integer.MIN_VALUE;
         for (final Move move : allPossibleMoves) {
-            int score = evaluate(board.makeMove(move), flip(player), level - 1, -b, -a);
+            final int score;
+            if (level > 0) {
+                score = evaluate(board.makeMove(move), flip(player), level - 1, -b, -a);
+            } else {
+                score = quietSearch(board.makeMove(move), flip(player), level - 1, -b, -a);
+            }
             if (bestScore < score) {
                 bestScore = score;
             }
