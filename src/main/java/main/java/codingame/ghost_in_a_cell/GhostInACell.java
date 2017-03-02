@@ -3,6 +3,25 @@ package main.java.codingame.ghost_in_a_cell;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Find planets which are in ‘front lines’ —> Position cyborgs there
+ * <p>
+ * Make the bots go from A -> B -> C instead of A -> C if possible
+ * <p>
+ * Three Goals:
+ * Attack Enemy
+ * Take over Neutral
+ * Defend Friendly
+ * <p>
+ * Score moves as expected gains by cutoff time
+ * <p>
+ * Plot the fate of planets till the end of time.
+ * <p>
+ * A value of a planet is directly proportional to how central it is, its production, and its stability.
+ * Go for sniping.
+ * <p>
+ * If the planet is going to blow, use the forces to attack another planet
+ */
 public class GhostInACell {
 
     public static void main(String args[]) {
@@ -48,7 +67,8 @@ public class GhostInACell {
                 }
             }
             final Board board = new Board(factories, troops, bombs, distances, turn);
-            System.out.println(board.findBestMoves());
+            final String bestMoves = board.findBestMoves();
+            System.out.println(bestMoves.equals("") ? "WAIT" : bestMoves);
             turn++;
         }
     }
@@ -86,31 +106,113 @@ class Board {
     }
 
     private List<Move> chooseStrategyAndPlay() {
-        final List<Move> moves = new ArrayList<>();
-        factories.sort((o1, o2) -> (int) (o1.utility(turn) - o2.utility(turn)));
-        if (myProduction < opponentProduction && myArmy < opponentArmy) {
-            //ATTACK CAUTIOUSLY...GO FOR NEUTRALS IF POSSIBLE
-        } else if (myProduction > opponentProduction && myArmy < opponentArmy) {
-            //SNEAK, SNIPE, SLAUGHTER... DEFEND!
-        } else if (myProduction < opponentProduction && myArmy > opponentArmy) {
-            //ATTACK!!
-        } else {
-            //HOLD!! HOLD!!! AS ONE!!!
+        final List<Factory> factoriesSortedByUtility = new ArrayList<>(factories);
+        factoriesSortedByUtility.sort((o1, o2) -> (int) (o1.utility(turn) - o2.utility(turn)));
+        final List<Factory> frontLine = new ArrayList<>(factories);
+        frontLine.sort((o1, o2) -> (int) (o1.attackPotential(factories) - o2.attackPotential(factories)));
+        final List<Factory> suppliers = new ArrayList<>(factories);
+        suppliers.sort((o1, o2) -> (int) (o1.helpPotential(factories) - o2.helpPotential(factories)));
+        final int troopRequirement[] = new int[factories.size()];
+        final int arriveBy[] = new int[factories.size()];
+        for (final Factory factory : factoriesSortedByUtility) {
+            final Histogram histogram = factory.plotHistogram(troops, MAX_TURNS - turn);
+            if (factory.player == 1) {
+                int time = Histogram.LOOK_AHEAD;
+                int minimumDefense = Integer.MAX_VALUE;
+                for (int i = 0; i < Histogram.LOOK_AHEAD; i++) {
+                    if (minimumDefense > histogram.histogram[1][0][i]) {
+                        time = i;
+                        minimumDefense = histogram.histogram[1][0][i];
+                        if (minimumDefense == 0 && histogram.histogram[2][0][i] > 0) {
+                            break;
+                        }
+                    }
+                }
+                if (minimumDefense == 0 && histogram.histogram[2][0][time] > 0) {
+                    troopRequirement[factory.id] = histogram.histogram[2][0][time];
+                    arriveBy[factory.id] = time;
+                } else {
+                    troopRequirement[factory.id] = -histogram.histogram[1][0][time];
+                }
+                //defend if necessary
+            } else if (factory.player == -1) {
+                int time = Histogram.LOOK_AHEAD;
+                int minimumDefense = Integer.MAX_VALUE;
+                for (int i = 0; i < Histogram.LOOK_AHEAD; i++) {
+                    if (minimumDefense > histogram.histogram[2][0][i]) {
+                        time = i;
+                        minimumDefense = histogram.histogram[2][0][i];
+                        if (minimumDefense == 0 && histogram.histogram[1][0][i] > 0) {
+                            break;
+                        }
+                    }
+                }
+                if (minimumDefense > 0 || histogram.histogram[1][0][time] == 0) {
+                    troopRequirement[factory.id] = minimumDefense + 1;
+                    arriveBy[factory.id] = time;
+                }
+                //attack if possible
+            } else {
+                int time = Histogram.LOOK_AHEAD;
+                int minimumDefense = Integer.MAX_VALUE;
+                for (int i = 0; i < Histogram.LOOK_AHEAD; i++) {
+                    if (minimumDefense > histogram.histogram[0][0][i] + histogram.histogram[2][0][i]) {
+                        time = i;
+                        minimumDefense = histogram.histogram[0][0][i];
+                        if (minimumDefense == 0) {
+                            break;
+                        }
+                    }
+                }
+                if (time == Histogram.LOOK_AHEAD) {
+                    troopRequirement[factory.id] = histogram.histogram[0][0][time]
+                            + histogram.histogram[2][0][time] + 1;
+                    arriveBy[factory.id] = time;
+                }
+            }
         }
-        return moves;
+        final List<Factory> donators = frontLine.stream()
+                .filter(factory -> factory.player == 1)
+                .filter(factory -> troopRequirement[factory.id] <= 0)
+                .sorted(Comparator.comparingInt(factory -> troopRequirement[factory.id]))
+                .collect(Collectors.toList());
+        final List<Troop> movements = new ArrayList<>();
+        for (final Factory factory : factoriesSortedByUtility) {
+            if (troopRequirement[factory.id] > 0) {
+                int spareTroops = donators.stream().mapToInt(__ -> -troopRequirement[__.id]).sum();
+                for (Factory donator : donators) {
+                    if (-troopRequirement[donator.id] > troopRequirement[factory.id]) {
+                        spareTroops -= troopRequirement[factory.id];
+                    } else {
+                        spareTroops -= -troopRequirement[donator.id];
+                    }
+                }
+                if (spareTroops >= 0) {
+                    for (final Factory donator : donators) {
+                        if (-troopRequirement[donator.id] > troopRequirement[factory.id]) {
+                            movements.add(donator.dispatchTroop(factory, troopRequirement[factory.id]));
+                            troopRequirement[donator.id] += troopRequirement[factory.id];
+                            troopRequirement[factory.id] = 0;
+                        } else {
+                            movements.add(donator.dispatchTroop(factory, -troopRequirement[donator.id]));
+                            troopRequirement[factory.id] += troopRequirement[donator.id];//Seems right
+                            troopRequirement[donator.id] = 0;
+                        }
+                    }
+                    donators.removeIf(__ -> troopRequirement[__.id] == 0);
+                }
+            }
+        }
+        return movements.stream().map(troop -> new Move(troop.source,
+                                                        troop.destination,
+                                                        troop.size)).collect(Collectors.toList());
     }
 }
 
-enum MoveType {
-    MOVE, WAIT
-}
-
 class Move {
-    final MoveType moveType;
     final int source, destination, troopSize;
 
-    Move(final MoveType moveType, final int source, final int destination, final int troopSize) {
-        this.moveType = moveType;
+    Move(final int source, final int destination, final int troopSize) {
         this.source = source;
         this.destination = destination;
         this.troopSize = troopSize;
@@ -118,9 +220,7 @@ class Move {
 
     @Override
     public String toString() {
-        return moveType == MoveType.MOVE
-                ? moveType.name() + " " + source + " " + destination + " " + troopSize
-                : moveType.name();
+        return "MOVE" + " " + source + " " + destination + " " + troopSize;
     }
 }
 
@@ -171,12 +271,13 @@ class Factory extends Entity {
                 .sum();
     }
 
-    public double utility(int turn) {
+    public double utility(final int turn) {
         return sumOfDistances * production * (Board.MAX_TURNS - (turn + starts));
     }
 
     public double attackPotential(final List<Factory> factories) {
         return factories.stream()
+                .filter(c -> c.player != 0)
                 .filter(c -> c.player == -player)
                 .map(c -> c.distances)
                 .mapToDouble(c -> 1.0 / c[id])
@@ -185,6 +286,7 @@ class Factory extends Entity {
 
     public double helpPotential(final List<Factory> factories) {
         return factories.stream()
+                .filter(c -> c.player != 0)
                 .filter(c -> c.player == player)
                 .map(c -> c.distances)
                 .mapToDouble(c -> 1.0 / c[id])
@@ -238,9 +340,14 @@ class Factory extends Entity {
 }
 
 class Histogram {
-    final int[][][] histogram = new int[3][3][25]; //PLAYERS,(CURRENT_COUNT, ARRIVING_TROOPS, DEPARTING_TROOPS)
+    public static final int PLAYERS = 3;
+    public static final int LOOK_AHEAD = 25;
+    final int[][][] histogram;
+    //(CURRENT_COUNT, ARRIVING_TROOPS, DEPARTING_TROOPS)
 
-    public Histogram(final Factory factory, final List<Troop> troops, final int remainingTurns) {
+    public Histogram(final Factory factory, final List<Troop> troops, int remainingTurns) {
+        remainingTurns = remainingTurns < LOOK_AHEAD ? remainingTurns : LOOK_AHEAD;
+        histogram = new int[PLAYERS][3][remainingTurns];
         for (final Troop troop : troops) {
             if (troop.destination == factory.id && troop.timeToDestination < remainingTurns) {
                 histogram[troop.player][1][troop.timeToDestination] += troop.size;
