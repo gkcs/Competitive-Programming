@@ -104,23 +104,56 @@ class Board {
         }
         return factoryList;
     }
+
+    public String findBestMoves() {
+        final List<Move> moves = new ArrayList<>();
+        return moves.stream().map(Move::toString).collect(Collectors.joining(";"));
+    }
 }
 
-class Entity {
-    final int id;
+enum MoveType {
+    MOVE, WAIT
+}
 
-    Entity(final int id) {
+class Move {
+    final MoveType moveType;
+    final int source, destination, troopSize;
+
+    Move(final MoveType moveType, final int source, final int destination, final int troopSize) {
+        this.moveType = moveType;
+        this.source = source;
+        this.destination = destination;
+        this.troopSize = troopSize;
+    }
+
+    @Override
+    public String toString() {
+        return moveType == MoveType.MOVE
+                ? moveType.name() + " " + source + " " + destination + " " + troopSize
+                : moveType.name();
+    }
+}
+
+abstract class Entity {
+    final int id;
+    final String type;
+
+    Entity(final int id, final String type) {
         this.id = id;
+        this.type = type;
     }
 
     @Override
     public boolean equals(final Object o) {
-        return this == o || !(o == null || getClass() != o.getClass()) && id == ((Entity) o).id;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final Entity entity = (Entity) o;
+        return id == entity.id && type.equals(entity.type);
     }
 
     @Override
     public int hashCode() {
-        return id;
+        return 31 * id + type.hashCode();
     }
 }
 
@@ -135,7 +168,7 @@ class Factory extends Entity {
                    final int cyborgs,
                    final int production,
                    final int[] distances) {
-        super(entityId);
+        super(entityId, "FACTORY");
         this.player = player;
         this.cyborgs = cyborgs;
         this.production = production;
@@ -145,6 +178,12 @@ class Factory extends Entity {
 
     public int utility() {
         return sumOfDistances * production;
+    }
+
+    public Troop dispatchTroop(final Factory destination, final int armySize) {
+        assert cyborgs >= armySize;
+        cyborgs -= armySize;
+        return new Troop(player, distances[destination.id], id, destination.id, armySize);
     }
 
     public int[][] plotHistogram(final List<Troop> troops, int remainingTurns) {
@@ -212,9 +251,8 @@ class Factory extends Entity {
                 .orElse(null);
     }
 
-    public Troop abandon() {
-        final int destination = 0;
-        final Troop troop = new Troop(Troop.troops, player, distances[destination], id, destination, cyborgs);
+    public Troop abandon(final Factory destination) {
+        final Troop troop = new Troop(player, distances[destination.id], id, destination.id, cyborgs);
         cyborgs = 0;
         return troop;
     }
@@ -229,7 +267,7 @@ class Bomb extends Entity {
                 final int source,
                 final int destination,
                 final int timeToExplode) {
-        super(entityId);
+        super(entityId, "BOMB");
         this.player = player;
         this.source = source;
         this.destination = destination;
@@ -239,7 +277,7 @@ class Bomb extends Entity {
     public Factory explode(final Factory factory) {
         if (destination != -1 && factory.id != destination) {
             throw new RuntimeException("Wrong place to blow!");
-        } else if (timeToExplode == 0) {
+        } else if (timeToExplode != 0) {
             throw new RuntimeException("It shouldn't blow now...");
         } else if (factory.cyborgs > 20) {
             factory.cyborgs /= 2;
@@ -265,12 +303,16 @@ class Troop extends Entity {
                  final int source,
                  final int destination,
                  final int size) {
-        super(entityId);
+        super(entityId, "TROOP");
         this.size = size;
         this.player = player;
         this.timeToDestination = timeToDestination;
         this.source = source;
         this.destination = destination;
+    }
+
+    public Troop(final int player, final int distance, final int id, final int destination, final int cyborgs) {
+        this(troops++, player, distance, id, destination, cyborgs);
     }
 
     public Factory crash(final Factory factory) throws Throwable {
@@ -283,10 +325,9 @@ class Troop extends Entity {
                 factory.cyborgs = size - factory.cyborgs;
                 factory.player = player;
             }
-        } else {
-            throw new RuntimeException("You need to fight later...");
+            return factory;
         }
-        return factory;
+        throw new RuntimeException("You need to fight later...");
     }
 
     public void decrementTime() {
