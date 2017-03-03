@@ -6,13 +6,6 @@ import java.util.stream.Collectors;
 /**
  * Find planets which are in ‘front lines’ —> Position cyborgs there
  * <p>
- * Make the bots go from A -> B -> C instead of A -> C if possible
- * <p>
- * Three Goals:
- * Attack Enemy
- * Take over Neutral
- * Defend Friendly
- * <p>
  * Score moves as expected gains by cutoff time
  * <p>
  * Plot the fate of planets till the end of time.
@@ -142,13 +135,24 @@ class Board {
     private List<Move> chooseStrategyAndPlay() {
         final List<Factory> factoriesSortedByUtility = new ArrayList<>(factories);
         factoriesSortedByUtility.sort((o1, o2) -> (int) (o1.utility(turn) - o2.utility(turn)));
-        final List<Factory> frontLine = new ArrayList<>(factories);
-        frontLine.sort((o1, o2) -> (int) (o1.attackPotential(factories) - o2.attackPotential(factories)));
-        final List<Factory> suppliers = new ArrayList<>(factories);
-        suppliers.sort((o1, o2) -> (int) (o1.helpPotential(factories) - o2.helpPotential(factories)));
         final List<Factory> thoseInNeed = findThoseInNeed(factoriesSortedByUtility);
-        final List<Factory> donators = getDonators(suppliers);
         final List<Troop> movements = new ArrayList<>();
+        //move the ships to attack/defense. Then look for strategic movements to the frontLine
+        final List<Factory> frontLine = new ArrayList<>();
+        final List<Factory> suppliers = new ArrayList<>();
+        final List<Factory> donators = getDonators(suppliers);
+        for (final Factory source : factories) {
+            final Factory nearestEnemy = source.findNearestEnemy(factories);
+            final Factory target = nearestEnemy.findNearestEnemyWithConstraint(factories,
+                                                                               source,
+                                                                               source.distances[nearestEnemy.id]);
+            if (target == null) {
+                frontLine.add(source);
+            } else {
+                suppliers.add(source);
+                movements.add(source.dispatchTroop(target, source.getSpareShips()));
+            }
+        }
         return movements.stream().map(troop -> new Move(troop.source,
                                                         troop.destination,
                                                         troop.size)).collect(Collectors.toList());
@@ -309,6 +313,16 @@ class Factory extends Entity {
                 .orElse(null);
     }
 
+    public Factory findNearestEnemyWithConstraint(final List<Factory> factories,
+                                                  final Factory source,
+                                                  final int closestEnemyDistanceWithSource) {
+        return factories.stream()
+                .filter(factory -> factory.player == -player)
+                .filter(factory -> factory.distances[source.id] < closestEnemyDistanceWithSource)
+                .min(Comparator.comparingInt(factory -> distances[factory.id]))
+                .orElse(null);
+    }
+
     public Factory findNearestEnemy(final List<Factory> factories) {
         return factories.stream()
                 .filter(factory -> factory.player == -player)
@@ -331,6 +345,10 @@ class Factory extends Entity {
 
     public Requirement getRequirement() {
         return null;
+    }
+
+    public int getSpareShips() {
+        return 0;
     }
 }
 
