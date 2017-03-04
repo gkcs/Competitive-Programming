@@ -16,18 +16,9 @@ public class GhostInACell {
             }
         }
         int turn = 0;
-        final Map<Integer, Integer> factoryIndexes = new HashMap<>();
-        final Map<Integer, Integer> troopIndexes = new HashMap<>();
-        final Map<Integer, Integer> bombIndexes = new HashMap<>();
         for (int i = 0; i < linkCount; i++) {
             final int factory1 = in.nextInt();
             final int factory2 = in.nextInt();
-            if (!factoryIndexes.containsKey(factory1)) {
-                factoryIndexes.put(factory1, factoryIndexes.size());
-            }
-            if (!factoryIndexes.containsKey(factory2)) {
-                factoryIndexes.put(factory2, factoryIndexes.size());
-            }
             final int distance = in.nextInt();
             distances[factory1][factory2] = distances[factory2][factory1] = distance;
         }
@@ -37,7 +28,7 @@ public class GhostInACell {
             final List<Troop> troops = new ArrayList<>();
             final List<Factory> factories = new ArrayList<>();
             for (int i = 0; i < entityCount; i++) {
-                int entityId = in.nextInt();
+                final int entityId = in.nextInt();
                 final String entityType = in.next();
                 final int arg1 = in.nextInt();
                 final int arg2 = in.nextInt();
@@ -46,17 +37,12 @@ public class GhostInACell {
                 final int arg5 = in.nextInt();
                 switch (entityType) {
                     case "FACTORY":
-                        entityId = factoryIndexes.get(entityId);
                         factories.add(new Factory(entityId, arg1, arg2, arg3, arg4, distances[entityId]));
                         break;
                     case "TROOP":
-                        troopIndexes.putIfAbsent(entityId, troopIndexes.size());
-                        entityId = troopIndexes.get(entityId);
                         troops.add(new Troop(entityId, arg1, arg2, arg3, arg4, arg5));
                         break;
                     case "BOMB":
-                        bombIndexes.putIfAbsent(entityId, bombIndexes.size());
-                        entityId = bombIndexes.get(entityId);
                         final Bomb previousVersion = bombs.stream()
                                 .filter(bomb -> bomb.timeToExplode == arg4 + 1)
                                 .filter(bomb -> bomb.source == arg2)
@@ -71,7 +57,7 @@ public class GhostInACell {
                 }
             }
             final Board board = new Board(factories, troops, bombs, distances, turn);
-            final String bestMoves = board.findBestMoves(factoryIndexes);
+            final String bestMoves = board.findBestMoves();
             System.out.println(bestMoves.equals("") ? "WAIT" : bestMoves);
             turn++;
         }
@@ -112,13 +98,8 @@ class Board {
         opponentProduction = factories.stream().filter(factory -> factory.player == -1).mapToInt(factory -> factory.production).sum();
     }
 
-    public String findBestMoves(final Map<Integer, Integer> factoryIndexes) {
-        return play().stream()
-                .map(move -> new Move(factoryIndexes.get(move.source),
-                                      factoryIndexes.get(move.destination),
-                                      move.troopSize))
-                .map(Move::toString)
-                .collect(Collectors.joining(";"));
+    public String findBestMoves() {
+        return play().stream().map(Move::toString).collect(Collectors.joining(";"));
     }
 
     private List<Move> play() {
@@ -198,10 +179,10 @@ class Board {
             currentRequirements.add(requirements[0]);
         }
         currentRequirements.sort((o1, o2) -> (int) (o2.utility - o1.utility));
-        System.out.print("MSG " + currentRequirements.stream()
-                .map(Object::toString)
-                .collect(Collectors.joining(",")) + ";");
-        System.out.print("MSG " + excessTroops.values().stream().mapToInt(c -> c).sum() + ";");
+//        System.out.print("MSG " + currentRequirements.stream()
+//                .map(Object::toString)
+//                .collect(Collectors.joining(",")) + ";");
+//        System.out.print("MSG " + excessTroops.values().stream().mapToInt(c -> c).sum() + ";");
         for (final Requirement currentRequirement : currentRequirements) {
             if (currentRequirement.utility > 0 && currentRequirement.factory.player != -1) {
                 final int sum = excessTroops.values().stream().mapToInt(c -> c).sum();
@@ -373,7 +354,7 @@ class Factory extends Entity {
     public Troop dispatchTroop(final Factory destination, final int armySize) {
         assert cyborgs >= armySize;
         cyborgs -= armySize;
-        return new Troop(Troop.troops, id, destination.id, armySize, distances[destination.id], player);
+        return new Troop(Troop.troops++, player, id, destination.id, armySize, distances[destination.id]);
     }
 
     private Histogram plotHistogram(final List<Troop> troops, final int turn) {
@@ -414,7 +395,7 @@ class Factory extends Entity {
     }
 
     public Troop abandon(final Factory destination) {
-        final Troop troop = new Troop(Troop.troops, id, destination.id, cyborgs, distances[destination.id], player);
+        final Troop troop = new Troop(0, id, destination.id, cyborgs, distances[destination.id], player);
         cyborgs = 0;
         return troop;
     }
@@ -541,7 +522,7 @@ class Bomb extends Entity {
                 .filter(f -> f.id == this.destination)
                 .findAny()
                 .orElseThrow(() -> new RuntimeException("No such destination!"));
-        return new Troop(Troop.troops, player,
+        return new Troop(0, player,
                          source,
                          this.destination,
                          destination.cyborgs > 20 ?
@@ -558,7 +539,7 @@ class Bomb extends Entity {
 }
 
 class Troop extends Entity {
-    static int troops = 0;
+    public static int troops = 0;
     int timeToDestination, destination;
     final int size, player, source;
 
@@ -574,7 +555,6 @@ class Troop extends Entity {
         this.timeToDestination = timeToDestination;
         this.source = source;
         this.destination = destination;
-        troops++;
     }
 
     public Factory crash(final Factory factory) throws Throwable {
