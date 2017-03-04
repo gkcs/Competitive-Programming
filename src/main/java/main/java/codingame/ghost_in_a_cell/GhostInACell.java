@@ -47,20 +47,15 @@ public class GhostInACell {
                 switch (entityType) {
                     case "FACTORY":
                         entityId = factoryIndexes.get(entityId);
-                        factories.add(new Factory(entityId,
-                                                  arg1,
-                                                  arg2,
-                                                  arg3,
-                                                  arg4,
-                                                  distances[entityId]));
+                        factories.add(new Factory(entityId, arg1, arg2, arg3, arg4, distances[entityId]));
                         break;
                     case "TROOP":
-                        troopIndexes.put(entityId, troopIndexes.size());
+                        troopIndexes.putIfAbsent(entityId, troopIndexes.size());
                         entityId = troopIndexes.get(entityId);
                         troops.add(new Troop(entityId, arg1, arg2, arg3, arg4, arg5));
                         break;
                     case "BOMB":
-                        bombIndexes.put(entityId, bombIndexes.size());
+                        bombIndexes.putIfAbsent(entityId, bombIndexes.size());
                         entityId = bombIndexes.get(entityId);
                         final Bomb previousVersion = bombs.stream()
                                 .filter(bomb -> bomb.timeToExplode == arg4 + 1)
@@ -118,17 +113,16 @@ class Board {
     }
 
     public String findBestMoves(final Map<Integer, Integer> factoryIndexes) {
-        return chooseStrategyAndPlay().stream()
+        return play().stream()
                 .map(move -> new Move(factoryIndexes.get(move.source),
                                       factoryIndexes.get(move.destination),
-                                      move.troopSize)
-                ).map(Move::toString)
+                                      move.troopSize))
+                .map(Move::toString)
                 .collect(Collectors.joining(";"));
     }
 
-    private List<Move> chooseStrategyAndPlay() {
+    private List<Move> play() {
         final List<Troop> movements = new ArrayList<>();
-        //move the ships to attack/defense. Then look for strategic movements to the frontLine
         final List<Factory> frontLine = new ArrayList<>();
         final List<Factory> suppliers = new ArrayList<>();
         for (final Factory source : myFactories) {
@@ -142,10 +136,10 @@ class Board {
                 suppliers.add(source);
             }
         }
+        suppliers.removeAll(frontLine);
+        //move the ships to attack/defense. Then look for strategic movements to the frontLine
 
-        for (final Factory source : myFactories.stream()
-                .filter(factory -> !frontLine.contains(factory))
-                .collect(Collectors.toList())) {
+        for (final Factory source : suppliers) {
             final Factory nearestEnemy = source.findNearestEnemy(opponentFactories);
             final Factory target = nearestEnemy.findNearestEnemyWithConstraint(myFactories,
                                                                                source,
@@ -260,7 +254,9 @@ class Factory extends Entity {
     }
 
     public Histogram plotHistogram(final List<Troop> troops, int remainingTurns) {
-        return new Histogram(this, troops, remainingTurns);
+        return new Histogram(this,
+                             troops.stream().filter(troop -> troop.destination == id).collect(Collectors.toList()),
+                             remainingTurns);
     }
 
     public Factory findNearestFriendly(final List<Factory> factories) {
@@ -322,20 +318,17 @@ class Histogram {
     //(CURRENT_COUNT, ARRIVING_TROOPS, DEPARTING_TROOPS)
     // TIME
 
-    public Histogram(final Factory factory, final List<Troop> troops, int remainingTurns) {
+    public Histogram(final Factory factory, final List<Troop> incomingTroops, int remainingTurns) {
         remainingTurns = remainingTurns < LOOK_AHEAD ? remainingTurns : LOOK_AHEAD;
         histogram = new int[PLAYERS][3][remainingTurns];
         owner = new int[remainingTurns];
         size = remainingTurns;
-        for (final Troop troop : troops) {
-            if (troop.destination == factory.id && troop.timeToDestination < remainingTurns) {
+        for (final Troop troop : incomingTroops) {
+            if (troop.timeToDestination < remainingTurns) {
                 histogram[getPlayerIndex(troop.player)][1][troop.timeToDestination] += troop.size;
             }
-            if (troop.source == factory.id && troop.timeToDestination < remainingTurns) {
-                histogram[getPlayerIndex(troop.player)][2][troop.timeToDestination] += troop.size;
-            }
         }
-        histogram[0][0][getPlayerIndex(factory.player)] = factory.cyborgs;
+        histogram[factory.player][0][getPlayerIndex(factory.player)] = factory.cyborgs;
         int currentPlayer = factory.player;
         owner[0] = currentPlayer;
         for (int i = 1; i < remainingTurns; i++) {
