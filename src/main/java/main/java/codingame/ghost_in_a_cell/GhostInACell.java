@@ -182,7 +182,7 @@ class Board {
             for (int time = 0; time < histogram.size; time++) {
                 if (histogram.owner[time] != 1) {
                     final int opponentShips = histogram.histogram[0][0][time] + histogram.histogram[2][0][time] + 1;
-                    final int numberToGain = (Board.MAX_TURNS - time) * factory.production;
+                    final int numberToGain = (Board.MAX_TURNS - time - turn) * factory.production;
                     utility[factory.id][time] = new Requirement(factory,
                                                                 opponentShips,
                                                                 numberToGain,
@@ -197,8 +197,11 @@ class Board {
         for (final Requirement[] requirements : utility) {
             currentRequirements.add(requirements[0]);
         }
-        System.out.println("MSG " + excessTroops.values().stream().mapToInt(c -> c).sum() + ";");
         currentRequirements.sort((o1, o2) -> (int) (o2.utility - o1.utility));
+        System.out.print("MSG " + currentRequirements.stream()
+                .map(Object::toString)
+                .collect(Collectors.joining(",")) + ";");
+        System.out.print("MSG " + excessTroops.values().stream().mapToInt(c -> c).sum() + ";");
         for (final Requirement currentRequirement : currentRequirements) {
             if (currentRequirement.utility > 0 && currentRequirement.factory.player != -1) {
                 final int sum = excessTroops.values().stream().mapToInt(c -> c).sum();
@@ -223,10 +226,14 @@ class Board {
                 if (sum >= currentRequirement.size) {
                     for (final Map.Entry<Factory, Integer> entry : excessOthers.entrySet()) {
                         if (entry.getValue() >= currentRequirement.size) {
+                            movements.add(entry.getKey()
+                                                  .dispatchTroop(currentRequirement.factory, currentRequirement.size));
                             excessOthers.put(entry.getKey(), entry.getValue() - currentRequirement.size);
                             currentRequirement.size = 0;
                             break;
                         } else {
+                            movements.add(entry.getKey()
+                                                  .dispatchTroop(currentRequirement.factory, entry.getValue()));
                             currentRequirement.size -= entry.getValue();
                             excessOthers.put(entry.getKey(), 0);
                         }
@@ -262,6 +269,11 @@ class Requirement {
         this.size = size;
         this.shipsGained = shipsGained;
         this.utility = utility;
+    }
+
+    @Override
+    public String toString() {
+        return size + " " + utility;
     }
 }
 
