@@ -123,51 +123,27 @@ class Board {
                                                                                                         turn).size];
         for (final Requirement[] requirements : utility) {
             for (int i = 0; i < requirements.length; i++) {
-                requirements[i] = new Requirement(null, 10000, -10000, -10000);
+                requirements[i] = new Requirement(null, 10000, -10000, 0, -10000);
             }
         }
         final Map<Factory, Integer> excessTroops = new HashMap<>();
-        for (final Factory factory : myFactories) {
+        for (final Factory factory : factories) {
             final Histogram histogram = factory.getHistogram(troops, turn);
-            int minimumGarrison = Arrays.stream(histogram.histogram[1][0]).min().orElse(0);
-            if (minimumGarrison > 0) {
+            final int minimumGarrison = Arrays.stream(histogram.histogram[1][0]).min().orElse(0);
+            if (factory.player == 1 && minimumGarrison > 0) {
                 excessTroops.put(factory, minimumGarrison);
             } else {
                 for (int time = 0; time < histogram.size; time++) {
-                    if (histogram.owner[time] == -1) {
-                        final int opponentShips = histogram.histogram[2][0][time];
-                        final int numberToGain = (Board.MAX_TURNS - time) * factory.production;
+                    if (histogram.owner[time] != 1) {
+                        final int opponentShips = histogram.histogram[0][0][time] + histogram.histogram[2][0][time] + 1;
+                        final int numberToGain = (Board.MAX_TURNS - time - turn)
+                                * factory.production * (Math.abs(factory.player) + 1);
                         utility[factory.id][time] = new Requirement(factory,
                                                                     opponentShips,
                                                                     numberToGain,
+                                                                    time,
                                                                     numberToGain / (double) opponentShips);
                     }
-                }
-            }
-        }
-        for (final Factory factory : opponentFactories) {
-            final Histogram histogram = factory.getHistogram(troops, turn);
-            for (int time = 0; time < histogram.size; time++) {
-                if (histogram.owner[time] == -1) {
-                    final int opponentShips = histogram.histogram[2][0][time] + 1;
-                    final int numberToGain = (Board.MAX_TURNS - time) * factory.production;
-                    utility[factory.id][time] = new Requirement(factory,
-                                                                opponentShips,
-                                                                numberToGain,
-                                                                numberToGain / (double) opponentShips);
-                }
-            }
-        }
-        for (final Factory factory : neutrals) {
-            final Histogram histogram = factory.getHistogram(troops, turn);
-            for (int time = 0; time < histogram.size; time++) {
-                if (histogram.owner[time] != 1) {
-                    final int opponentShips = histogram.histogram[0][0][time] + histogram.histogram[2][0][time] + 1;
-                    final int numberToGain = (Board.MAX_TURNS - time - turn) * factory.production;
-                    utility[factory.id][time] = new Requirement(factory,
-                                                                opponentShips,
-                                                                numberToGain,
-                                                                numberToGain / (double) opponentShips);
                 }
             }
         }
@@ -188,13 +164,20 @@ class Board {
                 final int sum = excessTroops.values().stream().mapToInt(c -> c).sum();
                 if (sum >= currentRequirement.size) {
                     for (final Map.Entry<Factory, Integer> entry : excessTroops.entrySet()) {
-                        if (entry.getValue() >= currentRequirement.size) {
-                            excessTroops.put(entry.getKey(), entry.getValue() - currentRequirement.size);
-                            currentRequirement.size = 0;
-                            break;
-                        } else {
-                            currentRequirement.size -= entry.getValue();
-                            excessTroops.put(entry.getKey(), 0);
+                        if (entry.getKey().distances[currentRequirement.factory.id] < currentRequirement.timeToArrive) {
+                            if (entry.getValue() >= currentRequirement.size) {
+                                movements.add(entry.getKey()
+                                                      .dispatchTroop(currentRequirement.factory,
+                                                                     currentRequirement.size));
+                                excessTroops.put(entry.getKey(), entry.getValue() - currentRequirement.size);
+                                currentRequirement.size = 0;
+                                break;
+                            } else {
+                                movements.add(entry.getKey()
+                                                      .dispatchTroop(currentRequirement.factory, entry.getValue()));
+                                currentRequirement.size -= entry.getValue();
+                                excessTroops.put(entry.getKey(), 0);
+                            }
                         }
                     }
                 }
@@ -206,17 +189,20 @@ class Board {
                 final int sum = excessOthers.values().stream().mapToInt(c -> c).sum();
                 if (sum >= currentRequirement.size) {
                     for (final Map.Entry<Factory, Integer> entry : excessOthers.entrySet()) {
-                        if (entry.getValue() >= currentRequirement.size) {
-                            movements.add(entry.getKey()
-                                                  .dispatchTroop(currentRequirement.factory, currentRequirement.size));
-                            excessOthers.put(entry.getKey(), entry.getValue() - currentRequirement.size);
-                            currentRequirement.size = 0;
-                            break;
-                        } else {
-                            movements.add(entry.getKey()
-                                                  .dispatchTroop(currentRequirement.factory, entry.getValue()));
-                            currentRequirement.size -= entry.getValue();
-                            excessOthers.put(entry.getKey(), 0);
+                        if (entry.getKey().distances[currentRequirement.factory.id] < currentRequirement.timeToArrive) {
+                            if (entry.getValue() >= currentRequirement.size) {
+                                movements.add(entry.getKey()
+                                                      .dispatchTroop(currentRequirement.factory,
+                                                                     currentRequirement.size));
+                                excessOthers.put(entry.getKey(), entry.getValue() - currentRequirement.size);
+                                currentRequirement.size = 0;
+                                break;
+                            } else {
+                                movements.add(entry.getKey()
+                                                      .dispatchTroop(currentRequirement.factory, entry.getValue()));
+                                currentRequirement.size -= entry.getValue();
+                                excessOthers.put(entry.getKey(), 0);
+                            }
                         }
                     }
                 }
@@ -243,12 +229,18 @@ class Requirement {
     final Factory factory;
     int size;
     final int shipsGained;
+    final int timeToArrive;
     final double utility;
 
-    public Requirement(final Factory factory, final int size, final int shipsGained, final double utility) {
+    public Requirement(final Factory factory,
+                       final int size,
+                       final int shipsGained,
+                       final int timeToArrive,
+                       final double utility) {
         this.factory = factory;
         this.size = size;
         this.shipsGained = shipsGained;
+        this.timeToArrive = timeToArrive;
         this.utility = utility;
     }
 
@@ -445,20 +437,20 @@ class Histogram {
                 histogram[2][0][i] += factory.production;
             }
             if (histogram[1][0][i] > histogram[2][0][i]) {
-                histogram[1][0][i] = histogram[1][0][i] - histogram[2][0][i];
+                histogram[1][0][i] -= histogram[2][0][i];
                 histogram[2][0][i] = 0;
             } else if (histogram[1][0][i] < histogram[2][0][i]) {
-                histogram[2][0][i] = histogram[2][0][i] - histogram[1][0][i];
+                histogram[2][0][i] -= histogram[1][0][i];
                 histogram[1][0][i] = 0;
             } else {
                 histogram[2][0][i] = histogram[1][0][i] = 0;
             }
             if (histogram[2][0][i] > histogram[0][0][i]) {
-                histogram[2][0][i] = histogram[2][0][i] - histogram[0][0][i];
+                histogram[2][0][i] -= histogram[0][0][i];
                 histogram[0][0][i] = 0;
                 currentPlayer = -1;
             } else if (histogram[1][0][i] > histogram[0][0][i]) {
-                histogram[1][0][i] = histogram[1][0][i] - histogram[0][0][i];
+                histogram[1][0][i] -= histogram[0][0][i];
                 histogram[0][0][i] = 0;
                 currentPlayer = 1;
             } else {
