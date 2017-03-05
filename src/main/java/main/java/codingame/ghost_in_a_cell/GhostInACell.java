@@ -90,7 +90,7 @@ class Board {
         opponentFactories = factories.stream().filter(factory -> factory.player == -1).collect(Collectors.toList());
         factoryIndexMap = factories.stream().collect(Collectors.toMap(factory -> factory.id, Function.identity()));
         this.bombs.stream().filter(bomb -> bomb.player == -1)
-                .forEach(bomb -> bomb.setDestination(myFactories, factoryIndexMap, turn));
+                .forEach(bomb -> bomb.setDestination(myFactories, factoryIndexMap));
     }
 
     public String findBestMoves() {
@@ -267,7 +267,8 @@ class Board {
                                                                                    source,
                                                                                    source.distances[nearestEnemy.id]);
                 if (target != null &&
-                        target.getHistogram(troops, bombs, turn).owner[source.distances[target.id]] == 1) {
+                        target.getHistogram(troops, bombs, turn).owner[source.distances[target.id]] == 1
+                        && movements.stream().noneMatch(c -> c.source == target.id && c.destination == source.id)) {
                     if (excessTroops.getOrDefault(source, 0) > 0) {
                         movements.add(source.dispatchTroop(target, excessTroops.get(source)));
                         excessTroops.put(source, 0);
@@ -283,7 +284,7 @@ class Board {
         final List<Troop> movements = new ArrayList<>();
         final Set<Factory> requirementsHaveBeenMet = new HashSet<>();
         for (final Requirement currentRequirement : currentRequirements) {
-            if (currentRequirement.utility > 0 && !requirementsHaveBeenMet.contains(currentRequirement.factory)) {
+            if (currentRequirement.utility > 0) {// && !requirementsHaveBeenMet.contains(currentRequirement.factory)) {
                 if (currentRequirement.factory.player != -1) {
                     if (tryToMeetRequirement(excessTroops, excessTroops, movements, currentRequirement)) {
                         requirementsHaveBeenMet.add(currentRequirement.factory);
@@ -608,8 +609,7 @@ class Bomb extends Entity {
     }
 
     public void setDestination(final List<Factory> myFactories,
-                               final Map<Integer, Factory> opponentFactories,
-                               final int turn) {
+                               final Map<Integer, Factory> opponentFactories) {
         if (destination == -1) {
             final Factory opponentSource = opponentFactories.get(source);
             final List<Factory> possibleDestinations = new ArrayList<>();
@@ -619,10 +619,7 @@ class Bomb extends Entity {
                 }
             }
             if (possibleDestinations.size() == 1) {
-                destination = possibleDestinations.stream()
-                        .min(Comparator.comparingInt(o -> o.cyborgs + o.production * (Board.MAX_TURNS - turn - 1)))
-                        .map(c -> c.id)
-                        .orElseThrow(() -> new RuntimeException("No such factory to blow!"));
+                destination = possibleDestinations.get(0).id;
                 System.out.print("MSG " + destination + "Going to hit by a bomb!;");
             }
             //Else They are attacking neutrals
