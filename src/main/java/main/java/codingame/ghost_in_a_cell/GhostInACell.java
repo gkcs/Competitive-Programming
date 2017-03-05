@@ -140,13 +140,11 @@ class Board {
                 }
             }
         }
-        for (final Requirement[] requirements : utility) {
-            Arrays.sort(requirements, (o1, o2) -> (int) (o2.utility - o1.utility));
-        }
         final List<Requirement> currentRequirements = new ArrayList<>();
         for (final Requirement[] requirements : utility) {
             Collections.addAll(currentRequirements, requirements);
         }
+        currentRequirements.removeIf(currentRequirement -> currentRequirement.utility <= 0);
         currentRequirements.sort((o1, o2) -> Double.valueOf(o2.utility).compareTo(o1.utility));
         final List<Troop> movements = getTroopTactics(supplyToCity, excessTroops, currentRequirements);
         moveSupplies(supplyToCity, excessTroops, movements);
@@ -187,7 +185,7 @@ class Board {
                 touched.add(supplier);
                 final Factory start = supplier;
                 Factory current = start;
-                while (supplyToCity.containsKey(current) && !start.equals(supplyToCity.get(current))) {
+                while (current != null && supplyToCity.containsKey(current) && !start.equals(supplyToCity.get(current))) {
                     current = supplyToCity.get(current);
                     touched.add(current);
                 }
