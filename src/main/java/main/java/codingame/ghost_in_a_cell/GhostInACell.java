@@ -288,7 +288,7 @@ class Board {
                                                                                    suppliers);
                 if (target != null && target.getHistogram(troops,
                                                           bombs,
-                                                          Board.MAX_TURNS - turn).owner[source.distances[target.id]] == 1) {
+                                                          turn).owner[source.distances[target.id]] == 1) {
                     if (excessTroops.getOrDefault(source, 0) > 0) {
                         movements.add(source.dispatchTroop(target, excessTroops.get(source)));
                         excessTroops.put(target, 0);
