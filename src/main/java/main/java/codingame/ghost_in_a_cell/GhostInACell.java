@@ -227,12 +227,10 @@ class Board {
                                                                  Collections.emptyList(),
                                                                  -1);
                 if (histogram.histogram[0][0][0] + histogram.histogram[2][0][0] <= factory.cyborgs / 5) {
-                    moves.add(new Move(factory.id,
-                                       destination.id,
-                                       histogram.histogram[0][0][0] + histogram.histogram[2][0][0],
-                                       MoveType.MOVE));
+                    final int troopSize = histogram.histogram[0][0][0] + histogram.histogram[2][0][0] + 1;
+                    moves.add(new Move(factory.id, destination.id, troopSize, MoveType.MOVE));
                     nullFactories.remove(destination);
-                    excessTroops.put(factory, excessTroops.get(factory) - 1);
+                    excessTroops.put(factory, excessTroops.get(factory) - troopSize);
                 }
             }
         }
