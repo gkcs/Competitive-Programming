@@ -494,7 +494,6 @@ class Histogram {
         remainingTurns = remainingTurns < LOOK_AHEAD ? remainingTurns : LOOK_AHEAD;
         histogram = new int[PLAYERS][3][remainingTurns];
         owner = new int[remainingTurns];
-        int dontProduceForTurns = factory.starts;
         size = remainingTurns;
         for (final Troop troop : incomingTroops) {
             if (troop.timeToDestination < remainingTurns) {
@@ -508,14 +507,10 @@ class Histogram {
             histogram[0][0][i] = histogram[0][0][i - 1] + histogram[0][1][i] - histogram[0][2][i];
             histogram[1][0][i] = histogram[1][0][i - 1] + histogram[1][1][i] - histogram[1][2][i];
             histogram[2][0][i] = histogram[2][0][i - 1] + histogram[2][1][i] - histogram[2][2][i];
-            if (dontProduceForTurns == 0) {
-                if (currentPlayer == 1) {
-                    histogram[1][0][i] += factory.production;
-                } else if (currentPlayer == -1) {
-                    histogram[2][0][i] += factory.production;
-                }
-            } else {
-                dontProduceForTurns--;
+            if (currentPlayer == 1) {
+                histogram[1][0][i] += factory.production;
+            } else if (currentPlayer == -1) {
+                histogram[2][0][i] += factory.production;
             }
             if (histogram[1][0][i] > histogram[2][0][i]) {
                 histogram[1][0][i] -= histogram[2][0][i];
