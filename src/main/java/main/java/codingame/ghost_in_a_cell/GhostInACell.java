@@ -260,7 +260,7 @@ class Board {
                 final Factory target = nearestEnemy.findNearestEnemyWithConstraint(myFactories,
                                                                                    source,
                                                                                    source.distances[nearestEnemy.id]);
-                if (target.getHistogram(troops, turn).owner[source.distances[target.id]] == 1) {
+                if (target != null && target.getHistogram(troops, turn).owner[source.distances[target.id]] == 1) {
                     if (excessTroops.getOrDefault(source, 0) > 0) {
                         movements.add(source.dispatchTroop(target, excessTroops.get(source)));
                         excessTroops.put(source, 0);
