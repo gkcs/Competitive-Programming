@@ -88,12 +88,13 @@ class Board {
         this.troops = troops;
         //troops.addAll(bombs.stream().map(bomb -> bomb.convertToTroop(factories)).collect(Collectors.toList()));
         this.bombs = bombs;
-        this.bombs.stream().filter(bomb -> bomb.player == -1).forEach(bomb -> bomb.setDestination(factories, turn));
         this.distances = distances;
         this.turn = turn;
         myFactories = factories.stream().filter(factory -> factory.player == 1).collect(Collectors.toList());
         opponentFactories = factories.stream().filter(factory -> factory.player == -1).collect(Collectors.toList());
         neutrals = factories.stream().filter(factory -> factory.player == 0).collect(Collectors.toList());
+        this.bombs.stream().filter(bomb -> bomb.player == -1)
+                .forEach(bomb -> bomb.setDestination(myFactories,opponentFactories, turn));
         opponentArmy = opponentFactories.stream().mapToInt(factory -> factory.cyborgs).sum()
                 + troops.stream().filter(troop -> troop.player == -1).mapToInt(troop -> troop.size).sum();
         myArmy = myFactories.stream().mapToInt(factory -> factory.cyborgs).sum()
@@ -184,13 +185,15 @@ class Board {
         speedFactoryProduction(excessTroops, moves);
         bombThem(movements, moves);
         takeNullFactories(excessTroops, moves);
-        for (final Factory factory : hopelessFactories.stream()
-                .map(hopelessFactoryIndex -> myFactories.stream()
-                        .filter(factory -> factory.id == hopelessFactoryIndex)
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("No such bomb destination factory")))
-                .collect(Collectors.toList())) {
-            factory.abandon(factory.findNearest(factories));
+        if (hopelessFactories.size() > 0) {
+            for (final Factory factory : hopelessFactories.stream()
+                    .map(hopelessFactoryIndex -> myFactories.stream()
+                            .filter(factory -> factory.id == hopelessFactoryIndex)
+                            .findFirst()
+                            .orElseThrow(() -> new RuntimeException("No such bomb destination factory")))
+                    .collect(Collectors.toList())) {
+                factory.abandon(factory.findNearest(factories));
+            }
         }
         //TODO: stop passing the baton if not front city
         return moves;
@@ -628,7 +631,6 @@ class Bomb extends Entity {
     }
 
     public Troop convertToTroop(final List<Factory> factories, final int turn) {
-        setDestination(factories, turn);
         final Factory destination = factories.stream()
                 .filter(f -> f.id == this.destination)
                 .findAny()
@@ -644,16 +646,16 @@ class Bomb extends Entity {
                          timeToExplode);
     }
 
-    public void setDestination(final List<Factory> factories, final int turn) {
+    public void setDestination(final List<Factory> myFactories, final List<Factory> opponentFactories, final int turn) {
         if (destination == -1) {
-            final Factory sourceFactory = factories.stream()
+            final Factory opponentSource = opponentFactories.stream()
                     .filter(f -> f.id == this.source)
                     .findAny()
                     .orElseThrow(() -> new RuntimeException("No such source!"));
             final List<Factory> possibleDestinations = new ArrayList<>();
-            for (int i = 0; i < factories.size(); i++) {
-                if (sourceFactory.distances[i] == totalTimeToBlow) {
-                    possibleDestinations.add(factories.get(i));
+            for (final Factory myFactory : myFactories) {
+                if (opponentSource.distances[myFactory.id] == totalTimeToBlow) {
+                    possibleDestinations.add(myFactory);
                 }
             }
             destination = possibleDestinations.stream()
