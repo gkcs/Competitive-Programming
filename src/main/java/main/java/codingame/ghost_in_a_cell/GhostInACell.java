@@ -250,7 +250,7 @@ class Board {
 
     private void speedFactoryProduction(final Map<Factory, Integer> excessTroops, final List<Move> moves) {
         for (final Factory factory : excessTroops.keySet()) {
-            if (excessTroops.get(factory) >= 10 && factory.production < 3) {
+            if (excessTroops.get(factory) >= 15 && factory.production < 3) {
                 moves.add(new Move(factory.id, -1, -1, MoveType.INC));
                 excessTroops.put(factory, excessTroops.get(factory) - 10);
             }
