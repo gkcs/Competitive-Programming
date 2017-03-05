@@ -183,6 +183,7 @@ class Board {
             for (final Factory factory : hopelessFactory) {
                 final Troop exodus = factory.abandon(factory.findNearest(factories));
                 moves.add(new Move(exodus.source, exodus.destination, exodus.size, MoveType.MOVE));
+                excessTroops.put(factory, 0);
             }
         }
         //TODO: stop passing the baton if not front city, take bomb impact on histogram
@@ -262,6 +263,7 @@ class Board {
                 if (target.getHistogram(troops, Board.MAX_TURNS - turn).owner[source.distances[target.id]] == 1) {
                     if (excessTroops.getOrDefault(source, 0) > 0) {
                         movements.add(source.dispatchTroop(target, excessTroops.get(source)));
+                        excessTroops.put(source, 0);
                     }
                 }
             }
@@ -492,6 +494,7 @@ class Histogram {
         remainingTurns = remainingTurns < LOOK_AHEAD ? remainingTurns : LOOK_AHEAD;
         histogram = new int[PLAYERS][3][remainingTurns];
         owner = new int[remainingTurns];
+        int dontProduceForTurns = factory.starts;
         size = remainingTurns;
         for (final Troop troop : incomingTroops) {
             if (troop.timeToDestination < remainingTurns) {
@@ -505,10 +508,14 @@ class Histogram {
             histogram[0][0][i] = histogram[0][0][i - 1] + histogram[0][1][i] - histogram[0][2][i];
             histogram[1][0][i] = histogram[1][0][i - 1] + histogram[1][1][i] - histogram[1][2][i];
             histogram[2][0][i] = histogram[2][0][i - 1] + histogram[2][1][i] - histogram[2][2][i];
-            if (currentPlayer == 1) {
-                histogram[1][0][i] += factory.production;
-            } else if (currentPlayer == -1) {
-                histogram[2][0][i] += factory.production;
+            if (dontProduceForTurns == 0) {
+                if (currentPlayer == 1) {
+                    histogram[1][0][i] += factory.production;
+                } else if (currentPlayer == -1) {
+                    histogram[2][0][i] += factory.production;
+                }
+            } else {
+                dontProduceForTurns--;
             }
             if (histogram[1][0][i] > histogram[2][0][i]) {
                 histogram[1][0][i] -= histogram[2][0][i];
