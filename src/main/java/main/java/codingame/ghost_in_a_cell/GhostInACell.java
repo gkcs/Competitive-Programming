@@ -196,6 +196,10 @@ class Board {
 
     private void dodgeBombs(final List<Integer> hopelessFactories, final List<Move> moves) {
         if (hopelessFactories.size() > 0) {
+            System.out.print("MSG " + hopelessFactories.stream()
+                    .map(factoryIndexMap::get)
+                    .map(Factory::toString)
+                    .collect(Collectors.joining(",")) + ";");
             for (final Factory factory : hopelessFactories.stream().map(factoryIndexMap::get).collect(Collectors.toList())) {
                 final Troop exodus = factory.abandon(factory.findNearest(factories));
                 moves.add(new Move(exodus.source, exodus.destination, exodus.size, MoveType.MOVE));
@@ -519,7 +523,8 @@ class Factory extends Entity {
         return factories.stream()
                 .filter(factory -> factory.player == -player)
                 .filter(factory -> factory.distances[source.id] < closestEnemyDistanceWithSource)
-                .filter(factory -> !suppliers.contains(factory))
+                //todo:send to the parent target
+                //.filter(factory -> !suppliers.contains(factory))
                 .min(Comparator.comparingInt(factory -> distances[factory.id]))
                 .orElse(null);
     }
@@ -560,6 +565,15 @@ class Factory extends Entity {
         }
         return histogram;
     }
+
+    @Override
+    public String toString() {
+        return "Factory{" +
+                "player=" + player +
+                ", cyborgs=" + cyborgs +
+                ", production=" + production +
+                '}';
+    }
 }
 
 class Histogram {
@@ -597,14 +611,14 @@ class Histogram {
             histogram[0][0][i] = histogram[0][0][i - 1] + histogram[0][1][i];
             histogram[1][0][i] = histogram[1][0][i - 1] + histogram[1][1][i];
             histogram[2][0][i] = histogram[2][0][i - 1] + histogram[2][1][i];
-            //if (dontProduceForTurns > 0) {
-            //dontProduceForTurns--;
-            if (currentPlayer == 1) {
-                histogram[1][0][i] += factory.production;
-            } else if (currentPlayer == -1) {
-                histogram[2][0][i] += factory.production;
+            if (dontProduceForTurns > 0) {
+                dontProduceForTurns--;
+                if (currentPlayer == 1) {
+                    histogram[1][0][i] += factory.production;
+                } else if (currentPlayer == -1) {
+                    histogram[2][0][i] += factory.production;
+                }
             }
-            //}
             if (histogram[1][0][i] > histogram[2][0][i]) {
                 histogram[1][0][i] -= histogram[2][0][i];
                 histogram[2][0][i] = 0;
@@ -714,6 +728,7 @@ class Bomb extends Entity {
                         .min(Comparator.comparingInt(o -> o.cyborgs + o.production * (Board.MAX_TURNS - turn - 1)))
                         .map(c -> c.id)
                         .orElseThrow(() -> new RuntimeException("No such factory to blow!"));
+                System.out.print("MSG " + destination + "Going to hit by a bomb!;");
             }
             //Else They are attacking neutrals
         }
