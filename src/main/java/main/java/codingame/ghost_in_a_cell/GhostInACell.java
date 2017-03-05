@@ -68,6 +68,7 @@ public class GhostInACell {
 }
 
 class Board {
+    public static final Requirement NULL_REQUIREMENT = new Requirement(null, 10000, -10000, 0, -10000);
     private final List<Troop> troops;
     private final List<Bomb> bombs;
     private final List<Factory> factories;
@@ -104,7 +105,7 @@ class Board {
                                                                                                         turn).size];
         for (final Requirement[] requirements : utility) {
             for (int i = 0; i < requirements.length; i++) {
-                requirements[i] = new Requirement(null, 10000, -10000, 0, -10000);
+                requirements[i] = NULL_REQUIREMENT;
             }
         }
         final Map<Factory, Integer> excessTroops = new HashMap<>();
@@ -253,7 +254,7 @@ class Board {
             int bomb = 0;
             while (bombsUsed < 2 && bomb < askingForIt.size()) {
                 final Factory target = askingForIt.get(bomb);
-                Factory nearestEnemy = target.findNearestEnemy(myFactories);
+                final Factory nearestEnemy = target.findNearestEnemy(myFactories);
                 if (nearestEnemy == null) {
                     break;
                 }
