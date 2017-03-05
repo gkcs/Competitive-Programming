@@ -214,7 +214,7 @@ class Board {
                 .filter(factory -> {
                     final Histogram histogram = factory.getHistogram(troops, bombs, turn);
                     return histogram.histogram[2][0][0] == histogram.histogram[2][0][histogram.size - 1]
-                            || histogram.histogram[0][0][0] == histogram.histogram[0][0][histogram.size - 1];
+                            && histogram.histogram[0][0][0] == histogram.histogram[0][0][histogram.size - 1];
                 })
                 .collect(Collectors.toList());
         for (final Factory factory : myFactories) {
@@ -226,12 +226,14 @@ class Board {
                 final Histogram histogram = factory.getHistogram(Collections.emptyList(),
                                                                  Collections.emptyList(),
                                                                  -1);
-                moves.add(new Move(factory.id,
-                                   destination.id,
-                                   histogram.histogram[0][0][0] + histogram.histogram[2][0][0],
-                                   MoveType.MOVE));
-                nullFactories.remove(destination);
-                excessTroops.put(factory, excessTroops.get(factory) - 1);
+                if (histogram.histogram[0][0][0] + histogram.histogram[2][0][0] <= factory.cyborgs / 5) {
+                    moves.add(new Move(factory.id,
+                                       destination.id,
+                                       histogram.histogram[0][0][0] + histogram.histogram[2][0][0],
+                                       MoveType.MOVE));
+                    nullFactories.remove(destination);
+                    excessTroops.put(factory, excessTroops.get(factory) - 1);
+                }
             }
         }
     }
@@ -611,13 +613,14 @@ class Histogram {
             histogram[0][0][i] = histogram[0][0][i - 1] + histogram[0][1][i];
             histogram[1][0][i] = histogram[1][0][i - 1] + histogram[1][1][i];
             histogram[2][0][i] = histogram[2][0][i - 1] + histogram[2][1][i];
-            if (dontProduceForTurns > 0) {
-                dontProduceForTurns--;
+            if (dontProduceForTurns == 0) {
                 if (currentPlayer == 1) {
                     histogram[1][0][i] += factory.production;
                 } else if (currentPlayer == -1) {
                     histogram[2][0][i] += factory.production;
                 }
+            } else {
+                dontProduceForTurns--;
             }
             if (histogram[1][0][i] > histogram[2][0][i]) {
                 histogram[1][0][i] -= histogram[2][0][i];
