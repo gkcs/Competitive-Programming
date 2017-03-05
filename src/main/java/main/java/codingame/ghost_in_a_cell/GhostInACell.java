@@ -58,7 +58,7 @@ public class GhostInACell {
                         break;
                 }
             }
-            final Board board = new Board(factories, troops, bombs, distances, turn);
+            final Board board = new Board(factories, troops, bombs, turn);
             final String bestMoves = board.findBestMoves();
             System.out.println(bestMoves.equals("") ? "WAIT" : bestMoves);
             bombs.removeIf(bomb -> bomb.timeToExplode == 1);
@@ -73,10 +73,7 @@ class Board {
     private final List<Factory> factories;
     private final List<Factory> myFactories;
     private final List<Factory> opponentFactories;
-    private final List<Factory> neutrals;
-    private final int[][] distances;
     private final int turn;
-    private final int myProduction, opponentProduction, myArmy, opponentArmy;
     public static final int MAX_TURNS = 400;
     private final Map<Integer, Factory> factoryIndexMap;
     private static int bombsUsed = 0;
@@ -84,26 +81,16 @@ class Board {
     public Board(final List<Factory> factories,
                  final List<Troop> troops,
                  final List<Bomb> bombs,
-                 final int[][] distances,
                  final int turn) {
         this.factories = factories;
         this.troops = troops;
-        //troops.addAll(bombs.stream().map(bomb -> bomb.convertToTroop(factories)).collect(Collectors.toList()));
         this.bombs = bombs;
-        this.distances = distances;
         this.turn = turn;
         myFactories = factories.stream().filter(factory -> factory.player == 1).collect(Collectors.toList());
         opponentFactories = factories.stream().filter(factory -> factory.player == -1).collect(Collectors.toList());
-        neutrals = factories.stream().filter(factory -> factory.player == 0).collect(Collectors.toList());
-        opponentArmy = opponentFactories.stream().mapToInt(factory -> factory.cyborgs).sum()
-                + troops.stream().filter(troop -> troop.player == -1).mapToInt(troop -> troop.size).sum();
-        myArmy = myFactories.stream().mapToInt(factory -> factory.cyborgs).sum()
-                + troops.stream().filter(troop -> troop.player == 1).mapToInt(troop -> troop.size).sum();
-        myProduction = factories.stream().filter(factory -> factory.player == 1).mapToInt(factory -> factory.production).sum();
-        opponentProduction = factories.stream().filter(factory -> factory.player == -1).mapToInt(factory -> factory.production).sum();
         factoryIndexMap = factories.stream().collect(Collectors.toMap(factory -> factory.id, Function.identity()));
         this.bombs.stream().filter(bomb -> bomb.player == -1)
-                .forEach(bomb -> bomb.setDestination(myFactories, factoryIndexMap, turn));
+                .forEach(bomb -> bomb.setDestination(myFactories, factoryIndexMap));
     }
 
     public String findBestMoves() {
@@ -441,36 +428,6 @@ class Factory extends Entity {
                 .sum();
     }
 
-    public double utility(final int turn) {
-        return sumOfDistances * production * (Board.MAX_TURNS - (turn + starts));
-    }
-
-    public double attackPotential(final List<Factory> factories) {
-        return factories.stream()
-                .filter(c -> c.player != 0)
-                .filter(c -> c.player == -player)
-                .map(c -> c.distances)
-                .mapToDouble(c -> 1.0 / c[id])
-                .sum() * production;
-    }
-
-    public double helpPotential(final List<Factory> factories) {
-        return factories.stream()
-                .filter(c -> c.player != 0)
-                .filter(c -> c.player == player)
-                .map(c -> c.distances)
-                .mapToDouble(c -> 1.0 / c[id])
-                .sum() * production;
-    }
-
-    public boolean isRearFactory(final List<Factory> factories) {
-        return helpPotential(factories) > 3 * attackPotential(factories);
-    }
-
-    public boolean isBehindEnemyLines(final List<Factory> factories) {
-        return attackPotential(factories) > 5 * helpPotential(factories);
-    }
-
     public Troop dispatchTroop(final Factory destination, final int armySize) {
         //TODO: WHY DOES THIS THROW UP??
         //assert cyborgs >= armySize;
@@ -482,13 +439,6 @@ class Factory extends Entity {
         return new Histogram(this,
                              troops.stream().filter(troop -> troop.destination == id).collect(Collectors.toList()),
                              Board.MAX_TURNS - turn);
-    }
-
-    public Factory findNearestFriendly(final List<Factory> factories) {
-        return factories.stream()
-                .filter(factory -> factory.player == player)
-                .min(Comparator.comparingInt(factory -> distances[factory.id]))
-                .orElse(null);
     }
 
     public Factory findNearestEnemyWithConstraint(final List<Factory> factories,
@@ -514,21 +464,10 @@ class Factory extends Entity {
                 .orElse(null);
     }
 
-    public Factory findNearestNeutral(final List<Factory> factories) {
-        return factories.stream()
-                .filter(factory -> factory.player == 0)
-                .min(Comparator.comparingInt(factory -> distances[factory.id]))
-                .orElse(null);
-    }
-
     public Troop abandon(final Factory destination) {
         final Troop troop = new Troop(0, id, destination.id, cyborgs, distances[destination.id], player);
         cyborgs = 0;
         return troop;
-    }
-
-    public int getSpareShips() {
-        return cyborgs;
     }
 
     public Histogram getHistogram(final List<Troop> troops, final int turn) {
@@ -620,38 +559,8 @@ class Bomb extends Entity {
         this.timeToExplode = timeToExplode;
     }
 
-    public Factory explode(final Factory factory) {
-        if (destination != -1 && factory.id != destination) {
-            throw new RuntimeException("Wrong place to blow!");
-        } else if (timeToExplode != 0) {
-            throw new RuntimeException("It shouldn't blow now...");
-        } else if (factory.cyborgs > 20) {
-            factory.cyborgs /= 2;
-        } else {
-            factory.cyborgs = factory.cyborgs > 10 ? factory.cyborgs - 10 : 0;
-        }
-        return factory;
-    }
-
-    public Troop convertToTroop(final List<Factory> factories, final int turn) {
-        final Factory destination = factories.stream()
-                .filter(f -> f.id == this.destination)
-                .findAny()
-                .orElseThrow(() -> new RuntimeException("No such destination!"));
-        return new Troop(0, player,
-                         source,
-                         this.destination,
-                         destination.cyborgs > 20 ?
-                                 destination.cyborgs / 2 :
-                                 destination.cyborgs > 10
-                                         ? 10
-                                         : destination.cyborgs,
-                         timeToExplode);
-    }
-
     public void setDestination(final List<Factory> myFactories,
-                               final Map<Integer, Factory> opponentFactories,
-                               final int turn) {
+                               final Map<Integer, Factory> opponentFactories) {
         if (destination == -1) {
             final Factory opponentSource = opponentFactories.get(source);
             final List<Factory> possibleDestinations = new ArrayList<>();
@@ -660,11 +569,8 @@ class Bomb extends Entity {
                     possibleDestinations.add(myFactory);
                 }
             }
-            if (possibleDestinations.size() > 0) {
-                destination = possibleDestinations.stream()
-                        .min(Comparator.comparingInt(o -> o.cyborgs + o.production * (Board.MAX_TURNS - turn - 1)))
-                        .map(c -> c.id)
-                        .orElseThrow(() -> new RuntimeException("No such factory to blow!"));
+            if (possibleDestinations.size() == 1) {
+                destination = possibleDestinations.get(0).id;
             }
             //Else They are attacking neutrals
         }
@@ -692,29 +598,5 @@ class Troop extends Entity {
         this.timeToDestination = timeToDestination;
         this.source = source;
         this.destination = destination;
-    }
-
-    public Factory crash(final Factory factory) throws Throwable {
-        if (factory.id != destination) {
-            throw new RuntimeException("Wrong place to fight!");
-        } else if (timeToDestination == 0) {
-            if (size <= factory.cyborgs) {
-                factory.cyborgs -= size;
-            } else {
-                factory.cyborgs = size - factory.cyborgs;
-                factory.player = player;
-            }
-            return factory;
-        }
-        throw new RuntimeException("You need to fight later...");
-    }
-
-    public void setDestination(final Factory destination) {
-        this.destination = destination.id;
-        this.timeToDestination = destination.distances[source];
-    }
-
-    public void decrementTime() {
-        --timeToDestination;
     }
 }
