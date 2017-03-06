@@ -185,12 +185,16 @@ class Board {
             if (!touched.contains(supplier)) {
                 touched.add(supplier);
                 final Factory start = supplier;
+                final List<Factory> citiesTouched = new ArrayList<>();
                 Factory current = start;
-                while (current != null && supplyToCity.containsKey(current) && !start.equals(supplyToCity.get(current))) {
+                citiesTouched.add(current);
+                while (current != null && supplyToCity.containsKey(current) &&
+                        !citiesTouched.contains(supplyToCity.get(current))) {
                     current = supplyToCity.get(current);
+                    citiesTouched.add(current);
                     touched.add(current);
                 }
-                if (start.equals(supplyToCity.get(current))) {
+                if (current != null && citiesTouched.contains(current)) {
                     supplyToCity.remove(current);
                 }
             }
@@ -297,10 +301,13 @@ class Board {
                 if (currentRequirement.factory.player != -1) {
                     tryToMeetRequirement(excessTroops, excessTroops, movements, currentRequirement);
                 } else {
-                    tryToMeetRequirement(excessTroops.entrySet()
-                                                 .stream()
-                                                 .filter(c -> !suppliers.containsKey(c.getKey()))
-                                                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
+                    final Map<Factory, Integer> excessWithoutSuppliers = new HashMap<>();
+                    excessTroops.forEach((key, value) -> {
+                        if (!suppliers.containsKey(key)) {
+                            excessWithoutSuppliers.put(key, value);
+                        }
+                    });
+                    tryToMeetRequirement(excessWithoutSuppliers,
                                          excessTroops,
                                          movements,
                                          currentRequirement);
@@ -578,8 +585,7 @@ class Bomb extends Entity {
         this.timeToExplode = timeToExplode;
     }
 
-    public void setDestination(final List<Factory> myFactories,
-                               final Map<Integer, Factory> opponentFactories) {
+    public void setDestination(final List<Factory> myFactories, final Map<Integer, Factory> opponentFactories) {
         if (destination == -1) {
             final Factory opponentSource = opponentFactories.get(source);
             final List<Factory> possibleDestinations = new ArrayList<>();
