@@ -526,15 +526,20 @@ class Histogram {
         }
         histogram[getPlayerIndex(factory.player)][0][0] = factory.cyborgs;
         int currentPlayer = factory.player;
+        int starts = factory.starts;
         owner[0] = currentPlayer;
         for (int i = 1; i < remainingTurns; i++) {
             histogram[0][0][i] = histogram[0][0][i - 1] + histogram[0][1][i] - histogram[0][2][i];
             histogram[1][0][i] = histogram[1][0][i - 1] + histogram[1][1][i] - histogram[1][2][i];
             histogram[2][0][i] = histogram[2][0][i - 1] + histogram[2][1][i] - histogram[2][2][i];
-            if (currentPlayer == 1) {
-                histogram[1][0][i] += factory.production;
-            } else if (currentPlayer == -1) {
-                histogram[2][0][i] += factory.production;
+            if (starts <= 0) {
+                if (currentPlayer == 1) {
+                    histogram[1][0][i] += factory.production;
+                } else if (currentPlayer == -1) {
+                    histogram[2][0][i] += factory.production;
+                }
+            } else {
+                starts--;
             }
             if (histogram[1][0][i] > histogram[2][0][i]) {
                 histogram[1][0][i] -= histogram[2][0][i];
