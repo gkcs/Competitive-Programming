@@ -68,6 +68,7 @@ public class GhostInACell {
 }
 
 class Board {
+    public static final Requirement NULL_REQUIREMENT = new Requirement(null, 10000, -10000, 0, -10000);
     private final List<Troop> troops;
     private final List<Bomb> bombs;
     private final List<Factory> factories;
@@ -98,27 +99,13 @@ class Board {
     }
 
     private List<Move> play() {
-        final List<Factory> frontLine = new ArrayList<>();
-        final List<Factory> suppliers = new ArrayList<>();
-        for (final Factory source : myFactories) {
-            final Factory nearestEnemy = source.findNearestEnemy(opponentFactories);
-            if (nearestEnemy != null) {
-                final Factory target = nearestEnemy.findNearestEnemyWithConstraint(myFactories,
-                                                                                   source,
-                                                                                   source.distances[nearestEnemy.id]);
-                if (target == null) {
-                    frontLine.add(source);
-                } else {
-                    suppliers.add(source);
-                }
-            }
-        }
-        suppliers.removeAll(frontLine);
+        final Map<Factory, Factory> supplyToCity = getSupplyDestinations();
         //move the ships to attack/defense. Then look for strategic movements to the frontLine
-        final Requirement utility[][] = new Requirement[factories.size()][Histogram.getRemainingTurnsToLookAt(turn)];
+        final Requirement utility[][] = new Requirement[factories.size()][factories.get(0).getHistogram(troops,
+                                                                                                        turn).size];
         for (final Requirement[] requirements : utility) {
             for (int i = 0; i < requirements.length; i++) {
-                requirements[i] = new Requirement(null, 10000, -10000, 0, -10000);
+                requirements[i] = NULL_REQUIREMENT;
             }
         }
         final Map<Factory, Integer> excessTroops = new HashMap<>();
@@ -129,7 +116,7 @@ class Board {
                 .map(bomb -> bomb.destination)
                 .collect(Collectors.toList());
         for (final Factory factory : factories) {
-            final Histogram histogram = factory.getHistogram(troops, bombs, turn);
+            final Histogram histogram = factory.getHistogram(troops, turn);
             final int minimumGarrison = Arrays.stream(histogram.histogram[1][0]).min().orElse(0);
             if (factory.player == 1) {
                 if (hopelessFactories.contains(factory.id)) {
@@ -154,31 +141,65 @@ class Board {
                 }
             }
         }
-        for (final Requirement[] requirements : utility) {
-            Arrays.sort(requirements, (o1, o2) -> (int) (o2.utility - o1.utility));
-        }
         final List<Requirement> currentRequirements = new ArrayList<>();
         for (final Requirement[] requirements : utility) {
             Collections.addAll(currentRequirements, requirements);
         }
+        currentRequirements.removeIf(currentRequirement -> currentRequirement.utility <= 0);
         currentRequirements.sort((o1, o2) -> Double.valueOf(o2.utility).compareTo(o1.utility));
-        System.out.print("MSG Requirements " + currentRequirements.stream()
-                .map(Object::toString)
-                .collect(Collectors.joining(",")) + ";");
-        System.out.print("MSG Excess " + excessTroops.values().stream().mapToInt(c -> c).sum() + ";");
-        final List<Troop> movements = getTroopTactics(suppliers, excessTroops, currentRequirements);
-        moveSupplies(suppliers, excessTroops, movements);
-        final List<Move> moves = new ArrayList<>();
+        final List<Troop> movements = getTroopTactics(supplyToCity, excessTroops, currentRequirements);
+        moveSupplies(supplyToCity, excessTroops, movements);
+        final List<Move> moves = movements.stream().map(troop -> new Move(troop.source,
+                                                                          troop.destination,
+                                                                          troop.size,
+                                                                          MoveType.MOVE)).collect(Collectors.toList());
+        speedFactoryProduction(excessTroops, moves);
         bombThem(movements, moves);
         takeNullFactories(excessTroops, moves);
         dodgeBombs(excessTroops, hopelessFactories, moves);
-        moves.addAll(movements.stream().map(troop -> new Move(troop.source,
-                                                              troop.destination,
-                                                              troop.size,
-                                                              MoveType.MOVE)).collect(Collectors.toList()));
-        speedFactoryProduction(excessTroops, moves);
-        //TODO: Do not pass between two front line planets...gets stuck
+        //TODO: stop passing the baton if not front city, take bomb impact on histogram
         return moves;
+    }
+
+    private Map<Factory, Factory> getSupplyDestinations() {
+        final Map<Factory, Factory> supplyToCity = new HashMap<>();
+        final List<Factory> frontLine = new ArrayList<>();
+        final List<Factory> suppliers = new ArrayList<>();
+        for (final Factory source : myFactories) {
+            final Factory nearestEnemy = source.findNearestEnemy(opponentFactories);
+            if (nearestEnemy != null) {
+                final Factory target = nearestEnemy.findNearestEnemyWithConstraint(myFactories,
+                                                                                   source,
+                                                                                   source.distances[nearestEnemy.id]);
+                if (target == null) {
+                    frontLine.add(source);
+                } else {
+                    suppliers.add(source);
+                    supplyToCity.put(source, target);
+                }
+            }
+        }
+        suppliers.removeAll(frontLine);
+        final Set<Factory> touched = new HashSet<>();
+        for (final Factory supplier : suppliers) {
+            if (!touched.contains(supplier)) {
+                touched.add(supplier);
+                final Factory start = supplier;
+                final List<Factory> citiesTouched = new ArrayList<>();
+                Factory current = start;
+                citiesTouched.add(current);
+                while (current != null && supplyToCity.containsKey(current) &&
+                        !citiesTouched.contains(supplyToCity.get(current))) {
+                    current = supplyToCity.get(current);
+                    citiesTouched.add(current);
+                    touched.add(current);
+                }
+                if (current != null && citiesTouched.contains(current)) {
+                    supplyToCity.remove(current);
+                }
+            }
+        }
+        return supplyToCity;
     }
 
     private void dodgeBombs(final Map<Factory, Integer> excessTroops,
@@ -201,7 +222,7 @@ class Board {
                 .filter(factory -> factory.player != 1)
                 .filter(factory -> factory.production == 0)
                 .filter(factory -> {
-                    final Histogram histogram = factory.getHistogram(troops, bombs, turn);
+                    final Histogram histogram = factory.getHistogram(troops, turn);
                     return histogram.owner[histogram.size - 1] == 0 && histogram.histogram[0][0][0] == 0;
                 })
                 .collect(Collectors.toList());
@@ -237,7 +258,7 @@ class Board {
             int bomb = 0;
             while (bombsUsed < 2 && bomb < askingForIt.size()) {
                 final Factory target = askingForIt.get(bomb);
-                Factory nearestEnemy = target.findNearestEnemy(myFactories);
+                final Factory nearestEnemy = target.findNearestEnemy(myFactories);
                 if (nearestEnemy == null) {
                     break;
                 }
@@ -250,65 +271,56 @@ class Board {
 
     private void speedFactoryProduction(final Map<Factory, Integer> excessTroops, final List<Move> moves) {
         for (final Factory factory : excessTroops.keySet()) {
-            if (excessTroops.get(factory) >= 15 && factory.production < 3) {
+            if (excessTroops.get(factory) >= 10 && factory.production < 3) {
                 moves.add(new Move(factory.id, -1, -1, MoveType.INC));
                 excessTroops.put(factory, excessTroops.get(factory) - 10);
             }
         }
     }
 
-    private void moveSupplies(final List<Factory> suppliers,
+    private void moveSupplies(final Map<Factory, Factory> suppliers,
                               final Map<Factory, Integer> excessTroops,
                               final List<Troop> movements) {
-        for (final Factory source : suppliers) {
-            final Factory nearestEnemy = source.findNearestEnemy(opponentFactories);
-            if (nearestEnemy != null) {
-                final Factory target = nearestEnemy.findNearestEnemyWithConstraint(myFactories,
-                                                                                   source,
-                                                                                   source.distances[nearestEnemy.id]);
-                if (target != null &&
-                        target.getHistogram(troops, bombs, turn).owner[source.distances[target.id]] == 1
-                        && movements.stream().noneMatch(c -> c.source == target.id && c.destination == source.id)) {
-                    if (excessTroops.getOrDefault(source, 0) > 0) {
-                        movements.add(source.dispatchTroop(target, excessTroops.get(source)));
-                        excessTroops.put(source, 0);
-                    }
+        for (final Factory source : suppliers.keySet()) {
+            final Factory target = suppliers.get(source);
+            if (target.getHistogram(troops, turn).owner[source.distances[target.id]] == 1) {
+                if (excessTroops.getOrDefault(source, 0) > 0) {
+                    movements.add(source.dispatchTroop(target, excessTroops.get(source)));
+                    excessTroops.put(source, 0);
                 }
             }
         }
     }
 
-    private List<Troop> getTroopTactics(final List<Factory> suppliers,
+    private List<Troop> getTroopTactics(final Map<Factory, Factory> suppliers,
                                         final Map<Factory, Integer> excessTroops,
                                         final List<Requirement> currentRequirements) {
         final List<Troop> movements = new ArrayList<>();
-        final Set<Factory> requirementsHaveBeenMet = new HashSet<>();
         for (final Requirement currentRequirement : currentRequirements) {
-            if (currentRequirement.utility > 0) {// && !requirementsHaveBeenMet.contains(currentRequirement.factory)) {
+            if (currentRequirement.utility > 0) {
                 if (currentRequirement.factory.player != -1) {
-                    if (tryToMeetRequirement(excessTroops, excessTroops, movements, currentRequirement)) {
-                        requirementsHaveBeenMet.add(currentRequirement.factory);
-                    }
+                    tryToMeetRequirement(excessTroops, excessTroops, movements, currentRequirement);
                 } else {
-                    if (tryToMeetRequirement(excessTroops.entrySet()
-                                                     .stream()
-                                                     .filter(c -> !suppliers.contains(c.getKey()))
-                                                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
-                                             excessTroops,
-                                             movements,
-                                             currentRequirement)) {
-                        requirementsHaveBeenMet.add(currentRequirement.factory);
-                    }
+                    final Map<Factory, Integer> excessWithoutSuppliers = new HashMap<>();
+                    excessTroops.forEach((key, value) -> {
+                        if (!suppliers.containsKey(key)) {
+                            excessWithoutSuppliers.put(key, value);
+                        }
+                    });
+                    tryToMeetRequirement(excessWithoutSuppliers,
+                                         excessTroops,
+                                         movements,
+                                         currentRequirement);
                 }
             }
         }
         return movements;
     }
 
-    private boolean tryToMeetRequirement(final Map<Factory, Integer> excessTroops,
-                                         final Map<Factory, Integer> original,
-                                         final List<Troop> movements,
-                                         final Requirement currentRequirement) {
+    private void tryToMeetRequirement(final Map<Factory, Integer> excessTroops,
+                                      final Map<Factory, Integer> original,
+                                      final List<Troop> movements,
+                                      final Requirement currentRequirement) {
         final int sum = excessTroops.values().stream().mapToInt(c -> c).sum();
         if (sum >= currentRequirement.size) {
             final List<Map.Entry<Factory, Integer>> sortedExcessTroops = excessTroops.entrySet()
@@ -336,9 +348,7 @@ class Board {
                     original.put(entry.getKey(), excessTroops.get(entry.getKey()));
                 }
             }
-            return true;
         }
-        return false;
     }
 }
 
@@ -446,17 +456,15 @@ class Factory extends Entity {
     }
 
     public Troop dispatchTroop(final Factory destination, final int armySize) {
-        //TODO: WHY DOES THIS THROW UP??
-        //assert cyborgs >= armySize;
+        //TODO: WHY DOES THIS THROW UP?? assert cyborgs >= armySize;
         cyborgs -= armySize;
         return new Troop(Troop.troops++, player, id, destination.id, armySize, distances[destination.id]);
     }
 
-    private Histogram plotHistogram(final List<Troop> troops, final List<Bomb> bombs, final int turn) {
+    private Histogram plotHistogram(final List<Troop> troops, final int turn) {
         return new Histogram(this,
                              troops.stream().filter(troop -> troop.destination == id).collect(Collectors.toList()),
-                             bombs.stream().filter(bomb -> bomb.destination == id).collect(Collectors.toList()),
-                             turn);
+                             Board.MAX_TURNS - turn);
     }
 
     public Factory findNearestEnemyWithConstraint(final List<Factory> factories,
@@ -465,8 +473,6 @@ class Factory extends Entity {
         return factories.stream()
                 .filter(factory -> factory.player == -player)
                 .filter(factory -> factory.distances[source.id] < closestEnemyDistanceWithSource)
-                //todo:send to the parent target
-                //.filter(factory -> !suppliers.contains(factory))
                 .min(Comparator.comparingInt(factory -> distances[factory.id]))
                 .orElse(null);
     }
@@ -490,45 +496,28 @@ class Factory extends Entity {
         return troop;
     }
 
-    public Histogram getHistogram(final List<Troop> troops, final List<Bomb> bombs, final int turn) {
+    public Histogram getHistogram(final List<Troop> troops, final int turn) {
         if (histogram == null) {
-            histogram = plotHistogram(troops, bombs, turn);
+            histogram = plotHistogram(troops, turn);
         }
         return histogram;
-    }
-
-    @Override
-    public String toString() {
-        return "Factory{" +
-                "player=" + player +
-                ", cyborgs=" + cyborgs +
-                ", production=" + production +
-                '}';
     }
 }
 
 class Histogram {
     public static final int PLAYERS = 3;
     public static final int LOOK_AHEAD = 25;
-    public static final int BOMB_PRODUCTION_TIME_HIT = 5;
     final int[][][] histogram;
     final int[] owner;
-    final boolean[] bombsComing;
     final int size;
     // PLAYER
     //(CURRENT_COUNT, ARRIVING_TROOPS, DEPARTING_TROOPS)
     // TIME
 
-    public Histogram(final Factory factory,
-                     final List<Troop> incomingTroops,
-                     final List<Bomb> incomingBombs,
-                     final int turn) {
-        final int remainingTurns = getRemainingTurnsToLookAt(turn);
+    public Histogram(final Factory factory, final List<Troop> incomingTroops, int remainingTurns) {
+        remainingTurns = remainingTurns < LOOK_AHEAD ? remainingTurns : LOOK_AHEAD;
         histogram = new int[PLAYERS][3][remainingTurns];
         owner = new int[remainingTurns];
-        bombsComing = new boolean[remainingTurns];
-        incomingBombs.forEach(bomb -> bombsComing[bomb.timeToExplode] = true);
-        int dontProduceForTurns = factory.starts;
         size = remainingTurns;
         for (final Troop troop : incomingTroops) {
             if (troop.timeToDestination < remainingTurns) {
@@ -537,19 +526,20 @@ class Histogram {
         }
         histogram[getPlayerIndex(factory.player)][0][0] = factory.cyborgs;
         int currentPlayer = factory.player;
+        int starts = factory.starts;
         owner[0] = currentPlayer;
         for (int i = 1; i < remainingTurns; i++) {
             histogram[0][0][i] = histogram[0][0][i - 1] + histogram[0][1][i] - histogram[0][2][i];
             histogram[1][0][i] = histogram[1][0][i - 1] + histogram[1][1][i] - histogram[1][2][i];
             histogram[2][0][i] = histogram[2][0][i - 1] + histogram[2][1][i] - histogram[2][2][i];
-            if (dontProduceForTurns == 0) {
+            if (starts <= 0) {
                 if (currentPlayer == 1) {
                     histogram[1][0][i] += factory.production;
                 } else if (currentPlayer == -1) {
                     histogram[2][0][i] += factory.production;
                 }
             } else {
-                dontProduceForTurns--;
+                starts--;
             }
             if (histogram[1][0][i] > histogram[2][0][i]) {
                 histogram[1][0][i] -= histogram[2][0][i];
@@ -572,16 +562,8 @@ class Histogram {
                 histogram[0][0][i] = histogram[0][0][i] - histogram[1][0][i] - histogram[2][0][i];
                 histogram[2][0][i] = histogram[1][0][i] = 0;
             }
-            if (bombsComing[i]) {
-                dontProduceForTurns = BOMB_PRODUCTION_TIME_HIT;
-            }
             owner[i] = currentPlayer;
         }
-    }
-
-    public static int getRemainingTurnsToLookAt(final int turn) {
-        final int remainingTurns = Board.MAX_TURNS - turn;
-        return remainingTurns < LOOK_AHEAD ? remainingTurns : LOOK_AHEAD;
     }
 
     private int getPlayerIndex(final int player) {
@@ -608,8 +590,7 @@ class Bomb extends Entity {
         this.timeToExplode = timeToExplode;
     }
 
-    public void setDestination(final List<Factory> myFactories,
-                               final Map<Integer, Factory> opponentFactories) {
+    public void setDestination(final List<Factory> myFactories, final Map<Integer, Factory> opponentFactories) {
         if (destination == -1) {
             final Factory opponentSource = opponentFactories.get(source);
             final List<Factory> possibleDestinations = new ArrayList<>();
@@ -620,7 +601,6 @@ class Bomb extends Entity {
             }
             if (possibleDestinations.size() == 1) {
                 destination = possibleDestinations.get(0).id;
-                System.out.print("MSG " + destination + "Going to hit by a bomb!;");
             }
             //Else They are attacking neutrals
         }
