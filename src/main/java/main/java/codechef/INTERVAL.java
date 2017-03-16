@@ -1,35 +1,61 @@
 package main.java.codechef;
 
+import main.java.InputReader;
+
+/**
+ * The INTERVAL problem from FEB-17 CodeChef is solved here
+ */
 public class INTERVAL {
+
     public static void main(String args[]) throws Exception {
-        int N = 0, M = 0, B[] = new int[M + 1];
-        final long cumulative[] = new long[N + 1];
-        final long dp[][] = new long[0][0];
-        for (int turn = M; turn >= 1; turn--) {
-            final long range[] = new long[N + 1];
-            for (int L1 = turn; L1 + B[turn] <= N + 2 - turn; L1++) {
-                final int R1 = L1 + B[turn] - 1;
-                final long score = cumulative[R1] - cumulative[L1 - 1];
-                final long next = dp[turn + 1][L1 + 1];
-                range[L1] = score - next;
+        final InputReader re = new InputReader(System.in);
+        final StringBuilder stringBuilder = new StringBuilder();
+        for (int t = re.readInt(); t > 0; t--) {
+            final int N = re.readInt(), M = re.readInt();
+            final int A[] = new int[N];
+            for (int i = 0; i < N; i++) {
+                A[i] = re.readInt();
             }
-            int rear = 0, front = 1;
-            final int queue[] = new int[N + 1];
-            final int validMoves = B[turn - 1] - B[turn] - 1;
-            for (int left = turn; left <= N + 1 - turn; left++) {
-                while (rear != front - 1 && queue[rear + 1] <= left - validMoves) {
-                    rear++;
+            final int[] B = new int[M + 1];
+            B[0] = N + 2;
+            for (int i = 1; i <= M; i++) {
+                B[i] = re.readInt();
+            }
+            final long precomputedSums[] = new long[N + 1];
+            //Pre-compute all range sums
+            for (int i = 0; i < N; i++) {
+                precomputedSums[i + 1] = A[i] + precomputedSums[i];
+            }
+            final long dp[][] = new long[M + 2][N + 1];
+            dp[M + 1] = new long[N + 2];
+            final int deque[] = new int[N + 1];
+            int front, rear;
+            //For each move starting from last move
+            for (int move = M; move >= 1; move--) {
+                final long range[] = new long[N + 1];
+                for (int leftIndex = move; leftIndex + B[move] <= N + 2 - move; leftIndex++) {
+                    //For every possible range that you can take, compute its value
+                    range[leftIndex] = precomputedSums[leftIndex + B[move] - 1] - precomputedSums[leftIndex - 1] - dp[move + 1][leftIndex + 1];
                 }
-                while (rear != front - 1 && range[left] >= range[queue[front - 1]]) {
-                    front--;
-                }
-                queue[front++] = left;
-                final int L1 = left - validMoves + 1;
-                if (L1 >= turn) {
-                    dp[turn][L1] = range[queue[rear + 1]];
+                front = 0;
+                rear = 1;
+                final int validMoves = B[move - 1] - B[move] - 1;
+                for (int i = move; i <= N + 1 - move; i++) {
+                    while (front < rear - 1 && deque[front + 1] <= i - validMoves) {
+                        front++;
+                    }
+                    while (front < rear - 1 && range[i] >= range[deque[rear - 1]]) {
+                        rear--;
+                    }
+                    deque[rear++] = i;
+                    final int L1 = i - validMoves + 1;
+                    if (L1 >= move) {
+                        dp[move][L1] = range[deque[front + 1]];
+                    }
                 }
             }
-            long ans = dp[1][1];
+            stringBuilder.append(dp[1][1]);
         }
+        System.out.println(stringBuilder);
     }
 }
