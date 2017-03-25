@@ -7,55 +7,61 @@ import main.java.InputReader;
  */
 public class INTERVAL {
 
-    public static void main(String args[]) throws Exception {
-        final InputReader re = new InputReader(System.in);
-        final StringBuilder stringBuilder = new StringBuilder();
-        for (int t = re.readInt(); t > 0; t--) {
-            final int N = re.readInt(), M = re.readInt();
-            final int A[] = new int[N];
-            for (int i = 0; i < N; i++) {
-                A[i] = re.readInt();
+    public static void main(String[] args) {
+        final InputReader in = new InputReader(System.in);
+        final StringBuilder sb = new StringBuilder();
+        for (int t = in.readInt(); t > 0; t--) {
+            final int n = in.readInt();
+            final int m = in.readInt();
+            final int a[] = new int[n];
+            final int b[] = new int[m];
+            final long precomputedSum[] = new long[n + 1];
+            for (int i = 0; i < n; i++) {
+                a[i] = in.readInt();
+                precomputedSum[i + 1] = precomputedSum[i] + a[i];
             }
-            final int[] B = new int[M + 1];
-            B[0] = N + 2;
-            for (int i = 1; i <= M; i++) {
-                B[i] = re.readInt();
+            for (int i = 0; i < m; i++) {
+                b[i] = in.readInt();
             }
-            final long precomputedSums[] = new long[N + 1];
-            //Pre-compute all range sums
-            for (int i = 0; i < N; i++) {
-                precomputedSums[i + 1] = A[i] + precomputedSums[i];
-            }
-            final long dp[][] = new long[M + 2][N + 1];
-            dp[M + 1] = new long[N + 2];
-            final int deque[] = new int[N + 1];
-            int front, rear;
-            //For each move starting from last move
-            for (int move = M; move >= 1; move--) {
-                final long range[] = new long[N + 1];
-                for (int leftIndex = move; leftIndex + B[move] <= N + 2 - move; leftIndex++) {
-                    //For every possible range that you can take, compute its value
-                    range[leftIndex] = precomputedSums[leftIndex + B[move] - 1] - precomputedSums[leftIndex - 1] - dp[move + 1][leftIndex + 1];
+            final long dp[] = new long[n];
+            long ans = 0;
+            for (int i = 0; i <= n - b[m - 1]; i++) {
+                dp[i] = precomputedSum[i + b[m - 1]] - precomputedSum[i];
+                if (m == 1) {
+                    ans = Math.max(ans, dp[i]);
                 }
-                front = 0;
-                rear = 1;
-                final int validMoves = B[move - 1] - B[move] - 1;
-                for (int i = move; i <= N + 1 - move; i++) {
-                    while (front < rear - 1 && deque[front + 1] <= i - validMoves) {
-                        front++;
-                    }
-                    while (front < rear - 1 && range[i] >= range[deque[rear - 1]]) {
+            }
+            for (int move = m - 2; move >= 0; move--) {
+                int deque[] = new int[n];
+                int front = 0, rear = -1;
+                int leftIndex;
+                //Standard Deque Implementation
+                for (leftIndex = move + 1; leftIndex < move + b[move] - b[move + 1]; leftIndex++) {
+                    //If the element at rear is lesser, kick them out
+                    while (front <= rear && dp[leftIndex] >= dp[deque[rear]]) {
                         rear--;
                     }
-                    deque[rear++] = i;
-                    final int L1 = i - validMoves + 1;
-                    if (L1 >= move) {
-                        dp[move][L1] = range[deque[front + 1]];
+                    //Add the index of the greater element to the deque
+                    deque[++rear] = leftIndex;
+                }
+                for (int current = move; current <= n - move - b[move]; current++, leftIndex++) {
+                    dp[current] = precomputedSum[current + b[move]] - precomputedSum[current] - dp[deque[front]];
+                    if (move == 0) {
+                        ans = Math.max(ans, dp[current]);
                     }
+                    //Remove invalid/obsolete elements from the front
+                    while (front <= rear && deque[front] <= current + 1) {
+                        front++;
+                    }
+                    //Remove smaller elements from rear
+                    while (front <= rear && dp[leftIndex] >= dp[deque[rear]]) {
+                        rear--;
+                    }
+                    deque[++rear] = leftIndex;
                 }
             }
-            stringBuilder.append(dp[1][1]);
+            sb.append(ans).append("\n");
         }
-        System.out.println(stringBuilder);
+        System.out.println(sb.toString());
     }
 }
