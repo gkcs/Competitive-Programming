@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 public class Taunt {
     public static void main(String[] args) throws IOException {
@@ -13,9 +14,9 @@ public class Taunt {
         for (int i = 0; i < board.length; i++) {
             final String cols[] = bufferedReader.readLine().split(" ");
             for (int j = 0; j < board[i].length; j++) {
-                board[i][j] |= cols[j].charAt(2) - '0';
-                board[i][j] |= cols[j].charAt(1) - '0' << 1;
-                board[i][j] |= cols[j].charAt(0) - '0' << 3;
+                board[i][j] |= (cols[j].charAt(2) - '0');
+                board[i][j] |= ((cols[j].charAt(1) - '0') & 3) << 1;
+                board[i][j] |= ((cols[j].charAt(0) - '0') & 3) << 3;
             }
         }
         final int movesPlayed = Integer.parseInt(bufferedReader.readLine());
@@ -58,12 +59,12 @@ class MinMax {
         if (board.options[player] == 0) {
             throw new RuntimeException("No possible moves");
         }
-        System.out.println(Arrays.toString(board.moves[player]));
         startConfigs = new Configuration[board.options[player]];
         for (int i = 0; i < startConfigs.length; i++) {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
         }
         Arrays.sort(startConfigs);
+        printStats();
         Move bestMove = startConfigs[0].move;
         while (depth < MAX_DEPTH && !timeOut) {
             bestMove = findBestMove(player);
@@ -71,7 +72,21 @@ class MinMax {
         }
         eval = startConfigs[0].strength;
         moves = board.options[player];
+        printStats();
         return bestMove;
+    }
+
+    public void printStats() {
+        System.out.println(Arrays.stream(startConfigs)
+                                   .map(configuration -> configuration.move)
+                                   .map(move -> "START " + move.start.toString() + " END " + move.end.toString())
+                                   .collect(Collectors.joining("\n")));
+        System.out.println(Arrays.stream(startConfigs)
+                                   .map(configuration -> Arrays.toString(configuration.board.pieceCount))
+                                   .collect(Collectors.toList()));
+        System.out.println(Arrays.stream(startConfigs)
+                                   .map(configuration -> configuration.strength)
+                                   .collect(Collectors.toList()));
     }
 
     private Move findBestMove(final int player) {
@@ -306,7 +321,6 @@ class MinMax {
                 killer = true;
             } else {
                 strength = this.board.heuristicValue(move.piece.player, movesPlayed + level);
-                strength -= Math.abs(Board.COLS / 2.0 - move.start.y);
                 killer = false;
             }
             //board.undo(move);
@@ -315,9 +329,7 @@ class MinMax {
 
         @Override
         public int compareTo(Configuration o) {
-            if (strength + o.strength >= 1000) {
-                return o.strength - strength;
-            } else if (!killer && o.killer) {
+            if (!killer && o.killer) {
                 return +1;
             } else if (killer && !o.killer) {
                 return -1;
@@ -380,6 +392,13 @@ class Piece {
         this.movingUp = movingUp;
     }
 
+    public Piece(final Piece piece) {
+        position = piece.position;
+        coin = piece.coin;
+        player = piece.player;
+        movingUp = piece.movingUp;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -418,6 +437,16 @@ class Move {
         this.end = end;
         this.piece = piece;
         this.capturedPieces = capturedPieces;
+    }
+
+    public Move(final Move move) {
+        start = move.start;
+        end = move.end;
+        piece = new Piece(move.piece);
+        capturedPieces = new ArrayList<>();
+        for (final Piece material : move.capturedPieces) {
+            capturedPieces.add(new Piece(material));
+        }
     }
 
     @Override
@@ -463,7 +492,7 @@ class Board {
     public static final int HASH_CODE_SIZE = 3;
     public static final int MOD = 63;
     public static final int MOVES_POSSIBLE = 27;
-    private final int pieceCount[];
+    final int[] pieceCount;
     public final long[] hashCode;
     final Piece[][] board;
     final Move moves[][];
@@ -483,15 +512,19 @@ class Board {
         this.options = new int[PLAYERS];
         this.pieceCount = new int[PLAYERS];
         this.hashCode = new long[HASH_CODE_SIZE];
-        for (int i = 0; i < board.length; i++) {
-            System.arraycopy(game.board[i], 0, board[i], 0, board[i].length);
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                board[i][j] = game.board[i][j] == null ? null : new Piece(game.board[i][j]);
+            }
         }
-        for (int i = 0; i < moves.length; i++) {
-            System.arraycopy(game.moves[i], 0, moves[i], 0, moves[i].length);
+        for (int i = 0; i < PLAYERS; i++) {
+            for (int j = 0; j < game.options[i]; j++) {
+                moves[i][j] = new Move(game.moves[i][j]);
+            }
         }
-        System.arraycopy(game.options, 0, options, 0, options.length);
-        System.arraycopy(game.pieceCount, 0, pieceCount, 0, pieceCount.length);
-        System.arraycopy(game.hashCode, 0, hashCode, 0, hashCode.length);
+        System.arraycopy(game.options, 0, options, 0, PLAYERS);
+        System.arraycopy(game.pieceCount, 0, pieceCount, 0, PLAYERS);
+        System.arraycopy(game.hashCode, 0, hashCode, 0, HASH_CODE_SIZE);
     }
 
     public Board play(final Move move) {
@@ -516,6 +549,7 @@ class Board {
                 freeSpace[player][gaps[player]++] = i;
             }
         }
+        pieceCount[opponent] -= move.capturedPieces.size();
         for (final Piece capture : move.capturedPieces) {
             for (int i = 0; i < options[opponent]; i++) {
                 if (moves[opponent][i] != null && moves[opponent][i].start.equals(capture.position)) {
@@ -532,7 +566,6 @@ class Board {
             final int digit = capture.position.x * COLS + capture.position.y;
             final int index = (digit << 2) & MOD;
             hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
-            pieceCount[opponent]--;
         }
         if (move.end.x == 0 || move.end.x == ROWS - 1
                 || (move.end.x == move.start.x
