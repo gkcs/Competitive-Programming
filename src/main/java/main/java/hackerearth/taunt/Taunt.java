@@ -3,10 +3,7 @@ package main.java.hackerearth.taunt;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
 
 public class Taunt {
@@ -23,9 +20,10 @@ public class Taunt {
         }
         final int movesPlayed = Integer.parseInt(bufferedReader.readLine());
         final int player = Integer.parseInt(bufferedReader.readLine());
-        final MinMax minMax = new MinMax(900, movesPlayed);
-        final int col = minMax.iterativeSearchForBestMove(player, new Board(board)).start.y;
-        System.out.println(col);
+        final MinMax minMax = new MinMax(400, movesPlayed);
+        final Board gameBoard = new Board(board);
+        final Move col = minMax.iterativeSearchForBestMove(player, gameBoard);
+        System.out.println(col.describe());
         minMax.metrics();
     }
 }
@@ -60,6 +58,7 @@ class MinMax {
         if (board.options[player] == 0) {
             throw new RuntimeException("No possible moves");
         }
+        System.out.println(Arrays.toString(board.moves[player]));
         startConfigs = new Configuration[board.options[player]];
         for (int i = 0; i < startConfigs.length; i++) {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
@@ -160,7 +159,6 @@ class MinMax {
                          final int b,
                          final boolean isTheOnlyBranch,
                          final boolean isNullSearch) throws TimeoutException {
-        board.play(move);
         int toTake = a, toGive = b;
         int max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
@@ -285,7 +283,7 @@ class MinMax {
                 }
             }
         }
-        board.undo(move);
+        //board.undo(move);
         return -max;
     }
 
@@ -311,7 +309,7 @@ class MinMax {
                 strength -= Math.abs(Board.COLS / 2.0 - move.start.y);
                 killer = false;
             }
-            board.undo(move);
+            //board.undo(move);
             this.move = move;
         }
 
@@ -349,25 +347,34 @@ class MinMax {
 }
 
 enum Coin {
-    PAWN(0, new int[][]{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}),
-    ROOK(0, new int[][]{{0, 1}, {0, -1}, {2, 0}}),
-    BISHOP(0, new int[][]{{-2, 2}, {2, 2}});
+    PAWN(0, new int[][]{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}, 1),
+    ROOK(0, new int[][]{{1, 0}, {-1, 0}, {0, 2}}, 2),
+    BISHOP(0, new int[][]{{-2, 2}, {2, 2}}, 3);
 
     final int value;
     final int[][] movesTo;
+    final int index;
 
-    Coin(final int value, final int[][] movesTo) {
+    Coin(final int value, final int[][] movesTo, final int index) {
         this.value = value;
         this.movesTo = movesTo;
+        this.index = index;
+    }
+
+    @Override
+    public String toString() {
+        return "Coin{" + name() + '}';
     }
 }
 
 class Piece {
+    final Board.Cell position;
     final Coin coin;
     final int player;
     boolean movingUp;
 
-    public Piece(final Coin coin, final int player, final boolean movingUp) {
+    public Piece(final Board.Cell position, final Coin coin, final int player, final boolean movingUp) {
+        this.position = position;
         this.coin = coin;
         this.player = player;
         this.movingUp = movingUp;
@@ -378,7 +385,7 @@ class Piece {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final Piece piece = (Piece) o;
-        return player == piece.player && movingUp == piece.movingUp && coin == piece.coin;
+        return player == piece.player && movingUp == piece.movingUp && coin == piece.coin && position.equals(piece.position);
     }
 
     @Override
@@ -386,7 +393,18 @@ class Piece {
         int result = coin.hashCode();
         result = 31 * result + player;
         result = 31 * result + (movingUp ? 1 : 0);
+        result = 31 * result + position.hashCode();
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return "Piece{" +
+                "position=" + position +
+                ", coin=" + coin +
+                ", player=" + player +
+                ", movingUp=" + movingUp +
+                '}';
     }
 }
 
@@ -407,7 +425,7 @@ class Move {
         if (this == o) return true;
         else if (o == null || getClass() != o.getClass()) return false;
         final Move move = (Move) o;
-        return start.equals(move.start) && end.equals(move.end) && piece.equals(move.piece);
+        return start.equals(move.start) && end.equals(move.end);
     }
 
     @Override
@@ -424,6 +442,7 @@ class Move {
                 "start=" + start +
                 ", end=" + end +
                 ", piece=" + piece +
+                ", capturedPieces=" + capturedPieces +
                 '}';
     }
 
@@ -433,7 +452,7 @@ class Move {
     }
 
     public String describe() {
-        return start.describe();
+        return start.describe() + "\n" + end.describe();
     }
 }
 
@@ -442,6 +461,8 @@ class Board {
     public static final int COLS = 4;
     private static final int PLAYERS = 3;
     public static final int HASH_CODE_SIZE = 3;
+    public static final int MOD = 63;
+    public static final int MOVES_POSSIBLE = 27;
     private final int pieceCount[];
     public final long[] hashCode;
     final Piece[][] board;
@@ -449,23 +470,237 @@ class Board {
     final int options[];
 
     public Board(final byte[][] board) {
+        this.pieceCount = new int[PLAYERS];
+        this.moves = new Move[PLAYERS][MOVES_POSSIBLE];
+        this.options = new int[PLAYERS];
         this.board = convertToBoard(board);
-        moves = new Move[PLAYERS][];
-        options = new int[PLAYERS];
         this.hashCode = getHashCode(board);
-        pieceCount = new int[PLAYERS];
+    }
+
+    public Board(final Board game) {
+        this.board = new Piece[ROWS][COLS];
+        this.moves = new Move[PLAYERS][MOVES_POSSIBLE];
+        this.options = new int[PLAYERS];
+        this.pieceCount = new int[PLAYERS];
+        this.hashCode = new long[HASH_CODE_SIZE];
+        for (int i = 0; i < board.length; i++) {
+            System.arraycopy(game.board[i], 0, board[i], 0, board[i].length);
+        }
+        for (int i = 0; i < moves.length; i++) {
+            System.arraycopy(game.moves[i], 0, moves[i], 0, moves[i].length);
+        }
+        System.arraycopy(game.options, 0, options, 0, options.length);
+        System.arraycopy(game.pieceCount, 0, pieceCount, 0, pieceCount.length);
+        System.arraycopy(game.hashCode, 0, hashCode, 0, hashCode.length);
     }
 
     public Board play(final Move move) {
-        return this;
+        final Board copy = new Board(this);
+        copy.makeMove(move);
+        return copy;
     }
 
-    public Board undo(final Move move) {
-        return this;
+    public void makeMove(final Move move) {
+        final int[][] freeSpace = new int[PLAYERS][20];
+        final int[] gaps = new int[PLAYERS];
+        final int player = move.piece.player;
+        final int opponent = MinMax.flip(player);
+        for (int i = 0; i < options[opponent]; i++) {
+            if (moves[opponent][i].capturedPieces.contains(move.piece)) {
+                moves[opponent][i].capturedPieces.remove(move.piece);
+            }
+        }
+        for (int i = 0; i < options[player]; i++) {
+            if (moves[player][i].end.equals(move.end) || moves[player][i].start.equals(move.start)) {
+                moves[player][i] = null;
+                freeSpace[player][gaps[player]++] = i;
+            }
+        }
+        for (final Piece capture : move.capturedPieces) {
+            for (int i = 0; i < options[opponent]; i++) {
+                if (moves[opponent][i] != null && moves[opponent][i].start.equals(capture.position)) {
+                    moves[opponent][i] = null;
+                    freeSpace[opponent][gaps[opponent]++] = i;
+                }
+            }
+            for (int i = 0; i < options[player]; i++) {
+                if (moves[player][i] != null && moves[player][i].capturedPieces.contains(capture)) {
+                    moves[player][i].capturedPieces.remove(capture);
+                }
+            }
+            board[capture.position.x][capture.position.y] = null;
+            final int digit = capture.position.x * COLS + capture.position.y;
+            final int index = (digit << 2) & MOD;
+            hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
+            pieceCount[opponent]--;
+        }
+        if (move.end.x == 0 || move.end.x == ROWS - 1
+                || (move.end.x == move.start.x
+                && (move.piece.coin.equals(Coin.BISHOP)
+                || (move.piece.coin.equals(Coin.ROOK)
+                && move.end.y == move.start.y)))) {
+            move.piece.movingUp = !move.piece.movingUp;
+        }
+        board[move.start.x][move.start.y] = null;
+        final int digit = move.start.x * COLS + move.start.y;
+        final int index = (digit << 2) & MOD;
+        hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
+        board[move.end.x][move.end.y] = move.piece;
+        {
+            final int moveBox = move.end.x * COLS + move.end.y;
+            final int moveIndex = (moveBox << 2) & MOD;
+            hashCode[moveBox >> 4] &= ~(((1 << (moveIndex + 4)) - 1) & (1 << moveIndex));
+            long hashValue = move.piece.movingUp ? 1 : 0;
+            hashValue |= move.piece.coin.index << 1;
+            hashValue |= (player == 2 ? 1 : 0) << 3;
+            hashCode[moveBox >> 4] |= (hashValue << moveIndex);
+        }
+        final int fills[] = new int[PLAYERS];
+        for (int k = -2; k <= 2; k++) {
+            for (int l = -2; l <= 2; l++) {
+                final int i = move.end.x + k, j = move.end.y + l;
+                if (i > 0 && i < ROWS && j > 0 && j < COLS && board[i][j] != null && board[i][j].player == opponent) {
+                    final Cell start = new Cell(i, j);
+                    for (final int[] movesTo : board[i][j].coin.movesTo) {
+                        final int direction = board[i][j].movingUp ? 1 : -1;
+                        if (!((j == 0 && movesTo[0] < 0)
+                                || (j == COLS - 1 && movesTo[0] > 0))) {
+                            int x = i + movesTo[1] * direction;
+                            int y = j + movesTo[0];
+                            if (x >= ROWS) {
+                                x = ROWS - (x + 1 - ROWS) - 1;
+                            } else if (x < 0) {
+                                x = -x;
+                            }
+                            if (y >= COLS) {
+                                y = COLS - (y + 1 - COLS) - 1;
+                            } else if (y < 0) {
+                                y = -y;
+                            }
+                            final List<Piece> captures = new ArrayList<>(2);
+                            if (x == move.end.x && y == move.end.y) {
+                                if (fills[opponent] < gaps[opponent]) {
+                                    moves[opponent][freeSpace[opponent][fills[opponent]++]] = new Move(start,
+                                                                                                       new Cell(x, y),
+                                                                                                       board[i][j],
+                                                                                                       captures);
+                                } else {
+                                    moves[opponent][options[opponent]++] = new Move(start,
+                                                                                    new Cell(x, y),
+                                                                                    board[i][j],
+                                                                                    captures);
+                                }
+                                if (board[x][y] != null) {
+                                    captures.add(board[x][y]);
+                                }
+                            } else if (board[x][y] != null && !board[x][y].coin.equals(Coin.PAWN)) {
+                                if (Math.abs(movesTo[1]) == 2) {
+                                    int intermediateX = x + movesTo[1] / 2 * direction;
+                                    int intermediateY = y + movesTo[0] / 2;
+                                    if (intermediateX >= ROWS) {
+                                        intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
+                                    } else if (intermediateX < 0) {
+                                        intermediateX = -intermediateX;
+                                    }
+                                    if (intermediateY >= COLS) {
+                                        intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
+                                    } else if (intermediateY < 0) {
+                                        intermediateY = -intermediateY;
+                                    }
+                                    if (intermediateX == move.end.x && intermediateY == move.end.y) {
+                                        captures.add(board[intermediateX][intermediateY]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        {
+            final int i = move.end.x, j = move.end.y;
+            final Cell start = new Cell(i, j);
+            for (final int[] movesTo : board[i][j].coin.movesTo) {
+                final int direction = board[i][j].movingUp ? 1 : -1;
+                if (!((j == 0 && movesTo[0] < 0)
+                        || (j == COLS - 1 && movesTo[0] > 0))) {
+                    int x = i + movesTo[1] * direction;
+                    int y = j + movesTo[0];
+                    if (x >= ROWS) {
+                        x = ROWS - (x + 1 - ROWS) - 1;
+                    } else if (x < 0) {
+                        x = -x;
+                    }
+                    if (y >= COLS) {
+                        y = COLS - (y + 1 - COLS) - 1;
+                    } else if (y < 0) {
+                        y = -y;
+                    }
+                    if (board[x][y] == null || board[x][y].player != player) {
+                        final List<Piece> captures = new ArrayList<>(2);
+                        if (fills[player] < gaps[player]) {
+                            moves[player][freeSpace[player][fills[player]++]] = new Move(start, new Cell(x, y),
+                                                                                         board[i][j], captures);
+                        } else {
+                            moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
+                        }
+                        if (board[x][y] != null) {
+                            captures.add(board[x][y]);
+                        }
+                        if (!board[i][j].coin.equals(Coin.PAWN)) {
+                            if (Math.abs(movesTo[1]) == 2) {
+                                int intermediateX = i + movesTo[1] / 2 * direction;
+                                int intermediateY = j + movesTo[0] / 2;
+                                if (intermediateX >= ROWS) {
+                                    intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
+                                } else if (intermediateX < 0) {
+                                    intermediateX = -intermediateX;
+                                }
+                                if (intermediateY >= COLS) {
+                                    intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
+                                } else if (intermediateY < 0) {
+                                    intermediateY = -intermediateY;
+                                }
+                                if (board[intermediateX][intermediateY] != null
+                                        && board[intermediateX][intermediateY].player == MinMax.flip(player)) {
+                                    captures.add(board[intermediateX][intermediateY]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        //shuffle the moves to blank spots
+        options[player] = shift(moves[player], freeSpace[player], gaps[player], fills[player], options[player]) + 1;
+        options[opponent] = shift(moves[opponent],
+                                  freeSpace[opponent],
+                                  gaps[opponent],
+                                  fills[opponent],
+                                  options[opponent]) + 1;
     }
+
+    private int shift(final Move[] move, final int[] freeSpace, final int end, final int start, int pointer) {
+        while (pointer >= 0 && move[pointer] == null) {
+            pointer--;
+        }
+        for (int i = start; i < end && pointer > 0; i++) {
+            final Move temp = move[freeSpace[i]];
+            move[freeSpace[i]] = move[pointer];
+            move[pointer] = temp;
+            while (pointer >= 0 && move[pointer] == null) {
+                pointer--;
+            }
+        }
+        return pointer;
+    }
+    //todo:implement this
+//    public Board undo(final Move move) {
+//        return this;
+//    }
 
     private Piece[][] convertToBoard(final byte[][] board) {
-        final Piece[][] pieces = new Piece[0][];
+        final Piece[][] pieces = new Piece[ROWS][COLS];
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 final int player = (board[i][j] >> 3) & 3;
@@ -473,20 +708,62 @@ class Board {
                     final int coinType = (board[i][j] >> 1) & 3;
                     final boolean movingUp = (board[i][j] & 1) == 1;
                     final Coin coin = coinType == 1 ? Coin.PAWN : coinType == 2 ? Coin.ROOK : Coin.BISHOP;
-                    pieces[i][j] = new Piece(coin, player, movingUp);
+                    pieces[i][j] = new Piece(new Cell(i, j), coin, player, movingUp);
                     pieceCount[player]++;
-                    for (final int[] movesTo : coin.movesTo) {
-                        final int x = i + movesTo[0];
-                        final int y = j + movesTo[1];
-                        if (x >= 0 && x < ROWS && y >= 0 && y < COLS) {
-                            if (((board[x][y] >> 3) & 3) != player) {
-                                //add possible position to move to
-                                if (((board[x][y] >> 3) & 3) == MinMax.flip(player)) {
-                                    //add capture piece
+                }
+            }
+        }
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                if (pieces[i][j] != null) {
+                    final int player = pieces[i][j].player;
+                    final Cell start = new Cell(i, j);
+                    for (final int[] movesTo : pieces[i][j].coin.movesTo) {
+                        final int direction = pieces[i][j].movingUp ? 1 : -1;
+                        if (!((j == 0 && movesTo[0] < 0)
+                                || (j == COLS - 1 && movesTo[0] > 0))) {
+                            int x = i + movesTo[1] * direction;
+                            int y = j + movesTo[0];
+                            if (x >= ROWS) {
+                                x = ROWS - (x + 1 - ROWS) - 1;
+                            } else if (x < 0) {
+                                x = -x;
+                            }
+                            if (y >= COLS) {
+                                y = COLS - (y + 1 - COLS) - 1;
+                            } else if (y < 0) {
+                                y = -y;
+                            }
+                            if (pieces[x][y] == null || pieces[x][y].player != player) {
+                                final List<Piece> captures = new ArrayList<>(2);
+                                moves[player][options[player]++] = new Move(start,
+                                                                            new Cell(x, y),
+                                                                            pieces[i][j],
+                                                                            captures);
+                                if (pieces[x][y] != null) {
+                                    captures.add(pieces[x][y]);
+                                }
+                                if (!pieces[i][j].coin.equals(Coin.PAWN)) {
+                                    if (Math.abs(movesTo[1]) == 2) {
+                                        int intermediateX = i + movesTo[1] / 2 * direction;
+                                        int intermediateY = j + movesTo[0] / 2;
+                                        if (intermediateX >= ROWS) {
+                                            intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
+                                        } else if (intermediateX < 0) {
+                                            intermediateX = -intermediateX;
+                                        }
+                                        if (intermediateY >= COLS) {
+                                            intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
+                                        } else if (intermediateY < 0) {
+                                            intermediateY = -intermediateY;
+                                        }
+                                        if (pieces[intermediateX][intermediateY] != null
+                                                && pieces[intermediateX][intermediateY].player == MinMax.flip(player)) {
+                                            captures.add(pieces[intermediateX][intermediateY]);
+                                        }
+                                    }
                                 }
                             }
-                        } else {
-                            //rebound
                         }
                     }
                 }
@@ -501,7 +778,7 @@ class Board {
             for (int j = 0; j < COLS; j++) {
                 final int digit = i * COLS + j;
                 final long b = board[i][j];
-                hashCode[digit >> 4] |= b << ((digit << 2) & 63);
+                hashCode[digit >> 4] |= b << ((digit << 2) & MOD);
             }
         }
         return hashCode;
@@ -519,7 +796,7 @@ class Board {
     public Integer isTerminated(final int player, final int moveNumber) {
         final boolean hasEnded = moveNumber >= 100 || pieceCount[player] == 0 || pieceCount[MinMax.flip(player)] == 0;
         if (hasEnded) {
-            assert pieceCount[player] + pieceCount[MinMax.flip(player)] != 0;
+            assert pieceCount[1] + pieceCount[2] > 0;
             return pieceCount[player] > pieceCount[MinMax.flip(player)] ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
         } else {
             return null;
@@ -539,7 +816,7 @@ class Board {
     public String toString() {
         return "Board{" +
                 "board=" + Arrays.deepToString(board) +
-                ", options=" + options +
+                ", options=" + Arrays.toString(options) +
                 ", moves=" + Arrays.deepToString(moves) +
                 ", hashCode=" + Arrays.toString(hashCode) +
                 '}';
@@ -561,7 +838,7 @@ class Board {
             return 31 * x + y;
         }
 
-        private Cell(final int x, final int y) {
+        public Cell(final int x, final int y) {
             this.x = x;
             this.y = y;
         }
@@ -578,16 +855,16 @@ class Board {
 
     @Override
     public boolean equals(final Object o) {
-        return this == o || !(o == null || getClass() != o.getClass()) && Arrays.equals(hashCode, ((Board) o).hashCode);
+        return this == o || !(o == null || getClass() != o.getClass()) && Arrays.deepEquals(board, ((Board) o).board);
     }
 
     public static class BoardSituation {
-        private final long[] board;
+        private final Board board;
         private final int player;
 
         public BoardSituation(final Board board, final int player) {
-            this.board = new long[board.hashCode.length];
-            System.arraycopy(board.hashCode, 0, this.board, 0, this.board.length);
+            this.board = board;
+//            System.arraycopy(board.hashCode, 0, this.board, 0, this.board.length);
             this.player = player;
         }
 
@@ -596,12 +873,12 @@ class Board {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final BoardSituation that = (BoardSituation) o;
-            return player == that.player && Arrays.equals(board, that.board);
+            return player == that.player && board.equals(that.board);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(board);
+            return board.hashCode();
         }
     }
 }
