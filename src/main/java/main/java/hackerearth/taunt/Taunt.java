@@ -42,7 +42,7 @@ class MinMax {
     private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
-    private final boolean nullSearchActivated = true;
+    private final boolean nullSearchActivated = false;
     private boolean timeOut;
     private final Map<Board.BoardSituation, Configuration[]> configurationMap;
     private int configHit;
@@ -64,7 +64,7 @@ class MinMax {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
         }
         Arrays.sort(startConfigs);
-        printStats();
+        //printStats();
         Move bestMove = startConfigs[0].move;
         while (depth < MAX_DEPTH && !timeOut) {
             bestMove = findBestMove(player);
@@ -72,7 +72,7 @@ class MinMax {
         }
         eval = startConfigs[0].strength;
         moves = board.options[player];
-        printStats();
+        //printStats();
         return bestMove;
     }
 
@@ -218,18 +218,10 @@ class MinMax {
                                                         true);
                     if (player == 1) {
                         if (nullMoveValue <= toTake) {
-                            if (nullMoveValue > max) {
-                                max = nullMoveValue;
-                            }
                             continue;
                         }
-                    } else {
-                        if (-nullMoveValue >= toGive) {
-                            if (nullMoveValue > max) {
-                                max = nullMoveValue;
-                            }
-                            continue;
-                        }
+                    } else if (nullMoveValue >= toGive) {
+                        continue;
                     }
                 }
                 final int moveValue = evaluate(possibleConfig.board,
@@ -244,10 +236,8 @@ class MinMax {
                     if (toTake < moveValue) {
                         toTake = moveValue;
                     }
-                } else {
-                    if (toGive > -moveValue) {
-                        toGive = -moveValue;
-                    }
+                } else if (toGive > moveValue) {
+                    toGive = moveValue;
                 }
                 if (moveValue > max) {
                     max = moveValue;
