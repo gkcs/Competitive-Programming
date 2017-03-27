@@ -3,9 +3,7 @@ package main.java.hackerearth.taunt;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -23,7 +21,7 @@ public class Taunt {
         }
         final int movesPlayed = Integer.parseInt(bufferedReader.readLine());
         final int player = Integer.parseInt(bufferedReader.readLine());
-        final MinMax minMax = new MinMax(400, movesPlayed);
+        final MinMax minMax = new MinMax(700, movesPlayed);
         final Board gameBoard = new Board(board);
         final Move col = minMax.iterativeSearchForBestMove(player, gameBoard);
         System.out.println(col.describe());
@@ -40,7 +38,7 @@ class MinMax {
     public static final int MAX_VALUE = 1000000;
     public static final int MIN_VALUE = -MAX_VALUE;
     private final long startTime = System.currentTimeMillis();
-    private boolean test;
+    private boolean test = false;
     private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
@@ -60,7 +58,7 @@ class MinMax {
         for (int i = 0; i < startConfigs.length; i++) {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0);
         }
-        Arrays.sort(startConfigs);
+        Arrays.sort(startConfigs, getConfigurationComparator(player));
 //        printStats();
         Move bestMove = startConfigs[0].move;
         while (depth < MAX_DEPTH && !timeOut) {
@@ -90,7 +88,6 @@ class MinMax {
         int toTake = MIN_VALUE, toGive = MAX_VALUE;
         int result = player == 1 ? MIN_VALUE : MAX_VALUE;
         Move bestMove = startConfigs[0].move;
-        //todo:alpha beta params are wrong
         try {
             for (final Configuration possibleConfig : startConfigs) {
                 final int moveValue = evaluate(possibleConfig.board,
@@ -109,9 +106,13 @@ class MinMax {
                 if (player == 1 && result < moveValue) {
                     result = moveValue;
                     bestMove = possibleConfig.move;
-                } else if (result > moveValue) {
+//                    System.out.println("RESULT: " + result + " " + possibleConfig.move + " PLAYER: " + player + " " +
+//                                               "depth: " + depth);
+                } else if (player == 2 && result > moveValue) {
                     result = moveValue;
                     bestMove = possibleConfig.move;
+//                    System.out.println("RESULT: " + result + " " + possibleConfig.move + " PLAYER: " + player + " " +
+//                                               "depth: " + depth);
                 }
                 if (toTake >= toGive) {
                     if (possibleConfig.killer) {
@@ -150,8 +151,20 @@ class MinMax {
             }
         } catch (TimeoutException ignored) {
         }
-        Arrays.sort(startConfigs);
+        Arrays.sort(startConfigs, getConfigurationComparator(player));
         return bestMove;
+    }
+
+    private Comparator<Configuration> getConfigurationComparator(final int player) {
+        return (first, second) -> {
+            if (!first.killer && second.killer) {
+                return +1;
+            } else if (first.killer && !second.killer) {
+                return -1;
+            } else {
+                return (player == 1 ? 1 : -1) * (second.strength - first.strength);
+            }
+        };
     }
 
     private int evaluate(final Board board,
@@ -160,25 +173,24 @@ class MinMax {
                          final int a,
                          final int b) throws TimeoutException {
         int toTake = a, toGive = b;
-        int result = player == 1 ? a : b;
+        int result = player == 1 ? MIN_VALUE : MAX_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             timeOut = true;
             throw new TimeoutException();
         }
-        final Integer terminated = board.isTerminated(player, movesPlayed + level);
+        final Integer terminated = board.isTerminated(movesPlayed + level);
         if (terminated != null) {
             result = terminated;
         } else if (level >= depth) {
             result = board.evaluatePosition();
         } else {
-            final Configuration[] configurations;
-            configurations = new Configuration[board.options[player]];
+            final Configuration[] configurations = new Configuration[board.options[player]];
             for (int i = 0; i < configurations.length; i++) {
                 configurations[i] = new Configuration(board.moves[player][i],
                                                       board,
                                                       level);
             }
-            Arrays.sort(configurations);
+            Arrays.sort(configurations, getConfigurationComparator(player));
             for (final Configuration possibleConfig : configurations) {
                 computations++;
                 final int moveValue = evaluate(possibleConfig.board,
@@ -196,7 +208,7 @@ class MinMax {
                 }
                 if (player == 1 && result < moveValue) {
                     result = moveValue;
-                } else if (result > moveValue) {
+                } else if (player == 2 && result > moveValue) {
                     result = moveValue;
                 }
                 if (toTake >= toGive) {
@@ -245,7 +257,7 @@ class MinMax {
         System.out.println(eval + " " + depth + " " + moves + " " + computations);
     }
 
-    public class Configuration implements Comparable<Configuration> {
+    public class Configuration {
         final Move move;
         final Board board;
         int strength;
@@ -258,22 +270,11 @@ class MinMax {
             if (move.equals(killerMoves[level][0]) || move.equals(killerMoves[level][1])) {
                 killer = true;
             } else {
-                strength = this.board.heuristicValue(move.piece.player, movesPlayed + level);
+                strength = this.board.heuristicValue(movesPlayed + level);
                 killer = false;
             }
             //board.undo(move);
             this.move = move;
-        }
-
-        @Override
-        public int compareTo(Configuration o) {
-            if (!killer && o.killer) {
-                return +1;
-            } else if (killer && !o.killer) {
-                return -1;
-            } else {
-                return o.strength - strength;
-            }
         }
 
         @Override
@@ -318,7 +319,7 @@ enum Coin {
 }
 
 class Piece {
-    final Board.Cell position;
+    Board.Cell position;
     final Coin coin;
     final int player;
     boolean movingUp;
@@ -377,8 +378,11 @@ class Move {
     public Move(final Board.Cell start, final Board.Cell end, final Piece piece, final List<Piece> capturedPieces) {
         this.start = start;
         this.end = end;
-        this.piece = piece;
-        this.capturedPieces = capturedPieces;
+        this.piece = new Piece(piece);
+        this.capturedPieces = new ArrayList<>();
+        for (final Piece material : capturedPieces) {
+            this.capturedPieces.add(new Piece(material));
+        }
     }
 
     public Move(final Move move) {
@@ -462,6 +466,7 @@ class Board {
                 board[i][j] = game.board[i][j] == null ? null : new Piece(game.board[i][j]);
             }
         }
+        //todo: piece is being reused
         for (int i = 0; i < PLAYERS; i++) {
             for (int j = 0; j < game.options[i]; j++) {
                 moves[i][j] = new Move(game.moves[i][j]);
@@ -514,7 +519,7 @@ class Board {
             final int index = (digit << 2) & MOD;
             hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
         }
-        if (move.end.x == 0 || move.end.x == ROWS - 1
+        if ((move.end.x == 0 && move.start.x != 0) || (move.end.x == ROWS - 1 && move.start.x != ROWS - 1)
                 || (move.end.x == move.start.x
                 && (move.piece.coin.equals(Coin.BISHOP)
                 || (move.piece.coin.equals(Coin.ROOK)
@@ -526,6 +531,7 @@ class Board {
         final int index = (digit << 2) & MOD;
         hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
         board[move.end.x][move.end.y] = move.piece;
+        move.piece.position = new Cell(move.end.x, move.end.y);
         {
             final int moveBox = move.end.x * COLS + move.end.y;
             final int moveIndex = (moveBox << 2) & MOD;
@@ -732,8 +738,8 @@ class Board {
         return hashCode;
     }
 
-    public int heuristicValue(final int player, final int movesPlayed) {
-        final Integer terminated = isTerminated(player, movesPlayed);
+    public int heuristicValue(final int movesPlayed) {
+        final Integer terminated = isTerminated(movesPlayed);
         return terminated != null ? terminated : evaluatePosition();
     }
 
@@ -741,8 +747,8 @@ class Board {
         return pieceCount[1] - pieceCount[2];
     }
 
-    public Integer isTerminated(final int player, final int moveNumber) {
-        final boolean hasEnded = moveNumber >= 100 || pieceCount[player] == 0 || pieceCount[MinMax.flip(player)] == 0;
+    public Integer isTerminated(final int moveNumber) {
+        final boolean hasEnded = moveNumber >= 100 || pieceCount[1] == 0 || pieceCount[2] == 0;
         if (hasEnded) {
             assert pieceCount[1] + pieceCount[2] > 0;
             return pieceCount[1] > pieceCount[2] ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
