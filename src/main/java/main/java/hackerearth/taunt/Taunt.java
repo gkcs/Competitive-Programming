@@ -61,7 +61,7 @@ class MinMax {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0);
         }
         Arrays.sort(startConfigs);
-        //printStats();
+//        printStats();
         Move bestMove = startConfigs[0].move;
         while (depth < MAX_DEPTH && !timeOut) {
             bestMove = findBestMove(player);
@@ -69,7 +69,7 @@ class MinMax {
         }
         eval = startConfigs[0].strength;
         moves = board.options[player];
-        //printStats();
+//        printStats();
         return bestMove;
     }
 
@@ -88,34 +88,30 @@ class MinMax {
 
     private Move findBestMove(final int player) {
         int toTake = MIN_VALUE, toGive = MAX_VALUE;
-        int max = MIN_VALUE;
+        int result = player == 1 ? MIN_VALUE : MAX_VALUE;
         Move bestMove = startConfigs[0].move;
+        //todo:alpha beta params are wrong
         try {
-            final boolean hasSingleBranch = startConfigs.length == 1;
             for (final Configuration possibleConfig : startConfigs) {
                 final int moveValue = evaluate(possibleConfig.board,
                                                flip(player),
                                                0,
                                                toTake,
-                                               toGive,
-                                               hasSingleBranch
-                );
+                                               toGive);
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
                         toTake = moveValue;
                     }
-                } else {
-                    if (toGive > -moveValue) {
-                        toGive = -moveValue;
-                    }
+                } else if (toGive > moveValue) {
+                    toGive = moveValue;
                 }
-                if (moveValue > max) {
-                    max = moveValue;
+                if (player == 1 && result < moveValue) {
+                    result = moveValue;
                     bestMove = possibleConfig.move;
-                    if (max == MAX_VALUE) {
-                        break;
-                    }
+                } else if (result > moveValue) {
+                    result = moveValue;
+                    bestMove = possibleConfig.move;
                 }
                 if (toTake >= toGive) {
                     if (possibleConfig.killer) {
@@ -162,19 +158,18 @@ class MinMax {
                          final int player,
                          final int level,
                          final int a,
-                         final int b,
-                         final boolean isTheOnlyBranch) throws TimeoutException {
+                         final int b) throws TimeoutException {
         int toTake = a, toGive = b;
-        int max = MIN_VALUE;
+        int result = player == 1 ? a : b;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             timeOut = true;
             throw new TimeoutException();
         }
         final Integer terminated = board.isTerminated(player, movesPlayed + level);
         if (terminated != null) {
-            max = terminated;
+            result = terminated;
         } else if (level >= depth) {
-            max = board.evaluatePosition(player);
+            result = board.evaluatePosition();
         } else {
             final Configuration[] configurations;
             configurations = new Configuration[board.options[player]];
@@ -184,15 +179,13 @@ class MinMax {
                                                       level);
             }
             Arrays.sort(configurations);
-            final boolean hasSingleBranch = configurations.length == 1;
             for (final Configuration possibleConfig : configurations) {
                 computations++;
                 final int moveValue = evaluate(possibleConfig.board,
                                                flip(player),
                                                level + 1,
                                                toTake,
-                                               toGive,
-                                               hasSingleBranch);
+                                               toGive);
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -201,11 +194,13 @@ class MinMax {
                 } else if (toGive > moveValue) {
                     toGive = moveValue;
                 }
-                if (moveValue > max) {
-                    max = moveValue;
+                if (player == 1 && result < moveValue) {
+                    result = moveValue;
+                } else if (result > moveValue) {
+                    result = moveValue;
                 }
                 if (toTake >= toGive) {
-                    max = isTheOnlyBranch ? moveValue : player == 1 ? toTake : toGive;
+                    result = moveValue;
                     if (possibleConfig.killer) {
                         if (possibleConfig.move.equals(killerMoves[level][0])) {
                             efficiency[level][0]++;
@@ -243,7 +238,7 @@ class MinMax {
         }
         //System.out.println("LEVEL: " + level + " " + Arrays.toString(killerMoves[level]));
         //board.undo(move);
-        return -max;
+        return result;
     }
 
     public void metrics() {
@@ -739,18 +734,18 @@ class Board {
 
     public int heuristicValue(final int player, final int movesPlayed) {
         final Integer terminated = isTerminated(player, movesPlayed);
-        return terminated != null ? terminated : evaluatePosition(player);
+        return terminated != null ? terminated : evaluatePosition();
     }
 
-    public int evaluatePosition(final int player) {
-        return pieceCount[player] - pieceCount[MinMax.flip(player)];
+    public int evaluatePosition() {
+        return pieceCount[1] - pieceCount[2];
     }
 
     public Integer isTerminated(final int player, final int moveNumber) {
         final boolean hasEnded = moveNumber >= 100 || pieceCount[player] == 0 || pieceCount[MinMax.flip(player)] == 0;
         if (hasEnded) {
             assert pieceCount[1] + pieceCount[2] > 0;
-            return pieceCount[player] > pieceCount[MinMax.flip(player)] ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
+            return pieceCount[1] > pieceCount[2] ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
         } else {
             return null;
         }
