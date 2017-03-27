@@ -119,7 +119,7 @@ class MinMax {
                 }
                 if (toTake >= toGive) {
                     if (possibleConfig.killer) {
-                        if (killerMoves[0][0] == possibleConfig.move) {
+                        if (possibleConfig.move.equals(killerMoves[0][0])) {
                             efficiency[0][0]++;
                         } else {
                             efficiency[0][1]++;
@@ -133,26 +133,22 @@ class MinMax {
                         if (killerMoves[0][0] == null) {
                             killerMoves[0][0] = possibleConfig.move;
                             efficiency[0][0] = 1;
-                        } else if (killerMoves[0][1] == null) {
+                        } else if (killerMoves[0][1] == null || efficiency[0][1] < 1) {
                             killerMoves[0][1] = possibleConfig.move;
                             efficiency[0][1] = 1;
                         }
                     }
                     break;
                 } else if (possibleConfig.killer) {
-                    if (killerMoves[0][0] == possibleConfig.move) {
+                    if (killerMoves[0][0].equals(possibleConfig.move)) {
                         efficiency[0][0]--;
                     } else {
                         efficiency[0][1]--;
                     }
-                    if (efficiency[0][0] < efficiency[0][1]) {
+                    if (efficiency[0][0] < efficiency[0][1] && killerMoves[0][1] != null) {
                         final Move temp = killerMoves[0][0];
                         killerMoves[0][0] = killerMoves[0][1];
                         killerMoves[0][1] = temp;
-                    }
-                    if (efficiency[0][1] <= 0) {
-                        efficiency[0][1] = 0;
-                        killerMoves[0][1] = null;
                     }
                 }
             }
@@ -185,8 +181,7 @@ class MinMax {
             for (int i = 0; i < configurations.length; i++) {
                 configurations[i] = new Configuration(board.moves[player][i],
                                                       board,
-                                                      level
-                );
+                                                      level);
             }
             Arrays.sort(configurations);
             final boolean hasSingleBranch = configurations.length == 1;
@@ -197,8 +192,7 @@ class MinMax {
                                                level + 1,
                                                toTake,
                                                toGive,
-                                               hasSingleBranch
-                );
+                                               hasSingleBranch);
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -213,7 +207,7 @@ class MinMax {
                 if (toTake >= toGive) {
                     max = isTheOnlyBranch ? moveValue : player == 1 ? toTake : toGive;
                     if (possibleConfig.killer) {
-                        if (killerMoves[level][0] == possibleConfig.move) {
+                        if (possibleConfig.move.equals(killerMoves[level][0])) {
                             efficiency[level][0]++;
                         } else {
                             efficiency[level][1]++;
@@ -227,30 +221,27 @@ class MinMax {
                         if (killerMoves[level][0] == null) {
                             killerMoves[level][0] = possibleConfig.move;
                             efficiency[level][0] = 1;
-                        } else if (killerMoves[level][1] == null) {
+                        } else if (killerMoves[level][1] == null || efficiency[level][1] < 1) {
                             killerMoves[level][1] = possibleConfig.move;
                             efficiency[level][1] = 1;
                         }
                     }
                     break;
                 } else if (possibleConfig.killer) {
-                    if (killerMoves[level][0] == possibleConfig.move) {
+                    if (killerMoves[level][0].equals(possibleConfig.move)) {
                         efficiency[level][0]--;
                     } else {
                         efficiency[level][1]--;
                     }
-                    if (efficiency[level][0] < efficiency[level][1]) {
+                    if (efficiency[level][0] < efficiency[level][1] && killerMoves[level][1] != null) {
                         final Move temp = killerMoves[level][0];
                         killerMoves[level][0] = killerMoves[level][1];
                         killerMoves[level][1] = temp;
                     }
-                    if (efficiency[level][1] <= 0) {
-                        efficiency[level][1] = 0;
-                        killerMoves[level][1] = null;
-                    }
                 }
             }
         }
+        //System.out.println("LEVEL: " + level + " " + Arrays.toString(killerMoves[level]));
         //board.undo(move);
         return -max;
     }
@@ -377,6 +368,10 @@ class Piece {
                 ", movingUp=" + movingUp +
                 '}';
     }
+
+    public String toReadableString() {
+        return String.valueOf(player) + String.valueOf(coin.index) + String.valueOf(movingUp ? 0 : 1);
+    }
 }
 
 class Move {
@@ -404,9 +399,11 @@ class Move {
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
-        else if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass()) return false;
+
         final Move move = (Move) o;
-        return start.equals(move.start) && end.equals(move.end);
+        return start.equals(move.start) && end.equals(move.end) && piece.equals(move.piece)
+                && capturedPieces.equals(move.capturedPieces);
     }
 
     @Override
@@ -414,6 +411,7 @@ class Move {
         int result = start.hashCode();
         result = 31 * result + end.hashCode();
         result = 31 * result + piece.hashCode();
+        result = 31 * result + capturedPieces.hashCode();
         return result;
     }
 
@@ -766,11 +764,23 @@ class Board {
     @Override
     public String toString() {
         return "Board{" +
-                "board=" + Arrays.deepToString(board) +
+                "board=" + toReadableString() +
                 ", options=" + Arrays.toString(options) +
-                ", moves=" + Arrays.deepToString(moves) +
-                ", hashCode=" + Arrays.toString(hashCode) +
+                //", moves=" + Arrays.deepToString(moves) +
+                ", hashCode=" + Arrays.stream(hashCode).mapToObj(c -> (c)).map(Long::toBinaryString).collect(Collectors.toList()) +
                 '}';
+    }
+
+    private String toReadableString() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append('\n');
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                stringBuilder.append(board[i][j] == null ? "000" : board[i][j].toReadableString()).append(' ');
+            }
+            stringBuilder.append('\n');
+        }
+        return stringBuilder.toString();
     }
 
     public static class Cell {
