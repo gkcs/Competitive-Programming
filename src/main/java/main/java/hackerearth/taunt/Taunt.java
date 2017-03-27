@@ -3,7 +3,9 @@ package main.java.hackerearth.taunt;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -42,16 +44,11 @@ class MinMax {
     private Configuration[] startConfigs;
     private final Move[][] killerMoves = new Move[MAX_DEPTH][2];
     private final int[][] efficiency = new int[MAX_DEPTH][2];
-    private final boolean nullSearchActivated = false;
     private boolean timeOut;
-    private final Map<Board.BoardSituation, Configuration[]> configurationMap;
-    private int configHit;
-    private int configInsert;
 
     public MinMax(final int timeOut, final int movesPlayed) {
         TIME_OUT = timeOut;
         this.movesPlayed = movesPlayed;
-        configurationMap = new HashMap<>();
         eval = 0;
     }
 
@@ -61,7 +58,7 @@ class MinMax {
         }
         startConfigs = new Configuration[board.options[player]];
         for (int i = 0; i < startConfigs.length; i++) {
-            startConfigs[i] = new Configuration(board.moves[player][i], board, 0, false);
+            startConfigs[i] = new Configuration(board.moves[player][i], board, 0);
         }
         Arrays.sort(startConfigs);
         //printStats();
@@ -97,13 +94,12 @@ class MinMax {
             final boolean hasSingleBranch = startConfigs.length == 1;
             for (final Configuration possibleConfig : startConfigs) {
                 final int moveValue = evaluate(possibleConfig.board,
-                                               possibleConfig.move,
                                                flip(player),
                                                0,
                                                toTake,
                                                toGive,
-                                               hasSingleBranch,
-                                               false);
+                                               hasSingleBranch
+                );
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -167,13 +163,11 @@ class MinMax {
     }
 
     private int evaluate(final Board board,
-                         final Move move,
                          final int player,
                          final int level,
                          final int a,
                          final int b,
-                         final boolean isTheOnlyBranch,
-                         final boolean isNullSearch) throws TimeoutException {
+                         final boolean isTheOnlyBranch) throws TimeoutException {
         int toTake = a, toGive = b;
         int max = MIN_VALUE;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
@@ -186,51 +180,25 @@ class MinMax {
         } else if (level >= depth) {
             max = board.evaluatePosition(player);
         } else {
-            final Board.BoardSituation boardSituation = new Board.BoardSituation(board, player);
             final Configuration[] configurations;
-            if (level < 8 && configurationMap.containsKey(boardSituation)) {
-                configurations = configurationMap.get(boardSituation);
-                configHit++;
-            } else {
-                configurations = new Configuration[board.options[player]];
-                for (int i = 0; i < configurations.length; i++) {
-                    configurations[i] = new Configuration(board.moves[player][i],
-                                                          board,
-                                                          level,
-                                                          isNullSearch);
-                }
-                if (level < 8) {
-                    configInsert++;
-                    configurationMap.put(boardSituation, configurations);
-                }
+            configurations = new Configuration[board.options[player]];
+            for (int i = 0; i < configurations.length; i++) {
+                configurations[i] = new Configuration(board.moves[player][i],
+                                                      board,
+                                                      level
+                );
             }
             Arrays.sort(configurations);
             final boolean hasSingleBranch = configurations.length == 1;
             for (final Configuration possibleConfig : configurations) {
                 computations++;
-                if (nullSearchActivated && !isNullSearch && !board.isEndGame(movesPlayed + level) && level + 2 < depth) {
-                    final int nullMoveValue = -evaluate(possibleConfig.board,
-                                                        possibleConfig.move, player,
-                                                        level + 2,
-                                                        player == 1 ? toTake : toGive - 1,
-                                                        player == 1 ? toTake + 1 : toGive,
-                                                        hasSingleBranch,
-                                                        true);
-                    if (player == 1) {
-                        if (nullMoveValue <= toTake) {
-                            continue;
-                        }
-                    } else if (nullMoveValue >= toGive) {
-                        continue;
-                    }
-                }
                 final int moveValue = evaluate(possibleConfig.board,
-                                               possibleConfig.move, flip(player),
+                                               flip(player),
                                                level + 1,
                                                toTake,
                                                toGive,
-                                               hasSingleBranch,
-                                               isNullSearch);
+                                               hasSingleBranch
+                );
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -241,36 +209,31 @@ class MinMax {
                 }
                 if (moveValue > max) {
                     max = moveValue;
-                    if (max == MAX_VALUE) {
-                        break;
-                    }
                 }
                 if (toTake >= toGive) {
                     max = isTheOnlyBranch ? moveValue : player == 1 ? toTake : toGive;
-                    if (!isNullSearch) {
-                        if (possibleConfig.killer) {
-                            if (killerMoves[level][0] == possibleConfig.move) {
-                                efficiency[level][0]++;
-                            } else {
-                                efficiency[level][1]++;
-                                if (efficiency[level][0] < efficiency[level][1]) {
-                                    final Move temp = killerMoves[level][0];
-                                    killerMoves[level][0] = killerMoves[level][1];
-                                    killerMoves[level][1] = temp;
-                                }
-                            }
+                    if (possibleConfig.killer) {
+                        if (killerMoves[level][0] == possibleConfig.move) {
+                            efficiency[level][0]++;
                         } else {
-                            if (killerMoves[level][0] == null) {
-                                killerMoves[level][0] = possibleConfig.move;
-                                efficiency[level][0] = 1;
-                            } else if (killerMoves[level][1] == null) {
-                                killerMoves[level][1] = possibleConfig.move;
-                                efficiency[level][1] = 1;
+                            efficiency[level][1]++;
+                            if (efficiency[level][0] < efficiency[level][1]) {
+                                final Move temp = killerMoves[level][0];
+                                killerMoves[level][0] = killerMoves[level][1];
+                                killerMoves[level][1] = temp;
                             }
+                        }
+                    } else {
+                        if (killerMoves[level][0] == null) {
+                            killerMoves[level][0] = possibleConfig.move;
+                            efficiency[level][0] = 1;
+                        } else if (killerMoves[level][1] == null) {
+                            killerMoves[level][1] = possibleConfig.move;
+                            efficiency[level][1] = 1;
                         }
                     }
                     break;
-                } else if (possibleConfig.killer && !isNullSearch) {
+                } else if (possibleConfig.killer) {
                     if (killerMoves[level][0] == possibleConfig.move) {
                         efficiency[level][0]--;
                     } else {
@@ -293,7 +256,7 @@ class MinMax {
     }
 
     public void metrics() {
-        System.out.println(eval + " " + depth + " " + moves + " " + computations + " " + configHit + " " + configInsert);
+        System.out.println(eval + " " + depth + " " + moves + " " + computations);
     }
 
     public class Configuration implements Comparable<Configuration> {
@@ -304,10 +267,9 @@ class MinMax {
 
         private Configuration(final Move move,
                               final Board board,
-                              final int level,
-                              final boolean resultsFromNullSearch) {
+                              final int level) {
             this.board = board.play(move);
-            if (!resultsFromNullSearch && (move.equals(killerMoves[level][0]) || move.equals(killerMoves[level][1]))) {
+            if (move.equals(killerMoves[level][0]) || move.equals(killerMoves[level][1])) {
                 killer = true;
             } else {
                 strength = this.board.heuristicValue(move.piece.player, movesPlayed + level);
@@ -524,8 +486,6 @@ class Board {
     }
 
     public void makeMove(final Move move) {
-        final int[][] freeSpace = new int[PLAYERS][20];
-        final int[] gaps = new int[PLAYERS];
         final int player = move.piece.player;
         final int opponent = MinMax.flip(player);
         for (int i = 0; i < options[opponent]; i++) {
@@ -533,22 +493,26 @@ class Board {
                 moves[opponent][i].capturedPieces.remove(move.piece);
             }
         }
-        for (int i = 0; i < options[player]; i++) {
+        for (int i = 0; i < options[player]; ) {
             if (moves[player][i].end.equals(move.end) || moves[player][i].start.equals(move.start)) {
-                moves[player][i] = null;
-                freeSpace[player][gaps[player]++] = i;
+                options[player]--;
+                moves[player][i] = moves[player][options[player]];
+            } else {
+                i++;
             }
         }
         pieceCount[opponent] -= move.capturedPieces.size();
         for (final Piece capture : move.capturedPieces) {
-            for (int i = 0; i < options[opponent]; i++) {
-                if (moves[opponent][i] != null && moves[opponent][i].start.equals(capture.position)) {
-                    moves[opponent][i] = null;
-                    freeSpace[opponent][gaps[opponent]++] = i;
+            for (int i = 0; i < options[opponent]; ) {
+                if (moves[opponent][i].start.equals(capture.position)) {
+                    options[opponent]--;
+                    moves[opponent][i] = moves[opponent][options[opponent]];
+                } else {
+                    i++;
                 }
             }
             for (int i = 0; i < options[player]; i++) {
-                if (moves[player][i] != null && moves[player][i].capturedPieces.contains(capture)) {
+                if (moves[player][i].capturedPieces.contains(capture)) {
                     moves[player][i].capturedPieces.remove(capture);
                 }
             }
@@ -578,60 +542,54 @@ class Board {
             hashValue |= (player == 2 ? 1 : 0) << 3;
             hashCode[moveBox >> 4] |= (hashValue << moveIndex);
         }
-        final int fills[] = new int[PLAYERS];
         for (int k = -2; k <= 2; k++) {
             for (int l = -2; l <= 2; l++) {
-                final int i = move.end.x + k, j = move.end.y + l;
-                if (i > 0 && i < ROWS && j > 0 && j < COLS && board[i][j] != null && board[i][j].player == opponent) {
-                    final Cell start = new Cell(i, j);
-                    for (final int[] movesTo : board[i][j].coin.movesTo) {
-                        final int direction = board[i][j].movingUp ? 1 : -1;
-                        if (!((j == 0 && movesTo[0] < 0)
-                                || (j == COLS - 1 && movesTo[0] > 0))) {
-                            int x = i + movesTo[1] * direction;
-                            int y = j + movesTo[0];
-                            if (x >= ROWS) {
-                                x = ROWS - (x + 1 - ROWS) - 1;
-                            } else if (x < 0) {
-                                x = -x;
-                            }
-                            if (y >= COLS) {
-                                y = COLS - (y + 1 - COLS) - 1;
-                            } else if (y < 0) {
-                                y = -y;
-                            }
-                            final List<Piece> captures = new ArrayList<>(2);
-                            if (x == move.end.x && y == move.end.y) {
-                                if (fills[opponent] < gaps[opponent]) {
-                                    moves[opponent][freeSpace[opponent][fills[opponent]++]] = new Move(start,
-                                                                                                       new Cell(x, y),
-                                                                                                       board[i][j],
-                                                                                                       captures);
-                                } else {
+                if (!(k == 0 && l == 0)) {
+                    final int i = move.end.x + k, j = move.end.y + l;
+                    if (i > 0 && i < ROWS && j > 0 && j < COLS && board[i][j] != null && board[i][j].player == opponent) {
+                        final Cell start = new Cell(i, j);
+                        for (final int[] movesTo : board[i][j].coin.movesTo) {
+                            final int direction = board[i][j].movingUp ? 1 : -1;
+                            if (!((j == 0 && movesTo[0] < 0)
+                                    || (j == COLS - 1 && movesTo[0] > 0))) {
+                                int x = i + movesTo[1] * direction;
+                                int y = j + movesTo[0];
+                                if (x >= ROWS) {
+                                    x = ROWS - (x + 1 - ROWS) - 1;
+                                } else if (x < 0) {
+                                    x = -x;
+                                }
+                                if (y >= COLS) {
+                                    y = COLS - (y + 1 - COLS) - 1;
+                                } else if (y < 0) {
+                                    y = -y;
+                                }
+                                final List<Piece> captures = new ArrayList<>(2);
+                                if (x == move.end.x && y == move.end.y) {
                                     moves[opponent][options[opponent]++] = new Move(start,
                                                                                     new Cell(x, y),
                                                                                     board[i][j],
                                                                                     captures);
-                                }
-                                if (board[x][y] != null) {
-                                    captures.add(board[x][y]);
-                                }
-                            } else if (board[x][y] != null && !board[x][y].coin.equals(Coin.PAWN)) {
-                                if (Math.abs(movesTo[1]) == 2) {
-                                    int intermediateX = x + movesTo[1] / 2 * direction;
-                                    int intermediateY = y + movesTo[0] / 2;
-                                    if (intermediateX >= ROWS) {
-                                        intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
-                                    } else if (intermediateX < 0) {
-                                        intermediateX = -intermediateX;
+                                    if (board[x][y] != null) {
+                                        captures.add(board[x][y]);
                                     }
-                                    if (intermediateY >= COLS) {
-                                        intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
-                                    } else if (intermediateY < 0) {
-                                        intermediateY = -intermediateY;
-                                    }
-                                    if (intermediateX == move.end.x && intermediateY == move.end.y) {
-                                        captures.add(board[intermediateX][intermediateY]);
+                                } else if (board[x][y] != null && !board[x][y].coin.equals(Coin.PAWN)) {
+                                    if (Math.abs(movesTo[1]) == 2) {
+                                        int intermediateX = x + movesTo[1] / 2 * direction;
+                                        int intermediateY = y + movesTo[0] / 2;
+                                        if (intermediateX >= ROWS) {
+                                            intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
+                                        } else if (intermediateX < 0) {
+                                            intermediateX = -intermediateX;
+                                        }
+                                        if (intermediateY >= COLS) {
+                                            intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
+                                        } else if (intermediateY < 0) {
+                                            intermediateY = -intermediateY;
+                                        }
+                                        if (intermediateX == move.end.x && intermediateY == move.end.y) {
+                                            captures.add(board[intermediateX][intermediateY]);
+                                        }
                                     }
                                 }
                             }
@@ -661,12 +619,7 @@ class Board {
                     }
                     if (board[x][y] == null || board[x][y].player != player) {
                         final List<Piece> captures = new ArrayList<>(2);
-                        if (fills[player] < gaps[player]) {
-                            moves[player][freeSpace[player][fills[player]++]] = new Move(start, new Cell(x, y),
-                                                                                         board[i][j], captures);
-                        } else {
-                            moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
-                        }
+                        moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
                         if (board[x][y] != null) {
                             captures.add(board[x][y]);
                         }
@@ -694,29 +647,8 @@ class Board {
                 }
             }
         }
-        //shuffle the moves to blank spots
-        options[player] = shift(moves[player], freeSpace[player], gaps[player], fills[player], options[player]) + 1;
-        options[opponent] = shift(moves[opponent],
-                                  freeSpace[opponent],
-                                  gaps[opponent],
-                                  fills[opponent],
-                                  options[opponent]) + 1;
     }
 
-    private int shift(final Move[] move, final int[] freeSpace, final int end, final int start, int pointer) {
-        while (pointer >= 0 && move[pointer] == null) {
-            pointer--;
-        }
-        for (int i = start; i < end && pointer > 0; i++) {
-            final Move temp = move[freeSpace[i]];
-            move[freeSpace[i]] = move[pointer];
-            move[pointer] = temp;
-            while (pointer >= 0 && move[pointer] == null) {
-                pointer--;
-            }
-        }
-        return pointer;
-    }
     //todo:implement this
 //    public Board undo(final Move move) {
 //        return this;
@@ -826,10 +758,6 @@ class Board {
         }
     }
 
-    public boolean isEndGame(final int moveNumber) {
-        return moveNumber > 50 || pieceCount[1] + pieceCount[2] < 8;
-    }
-
     @Override
     public int hashCode() {
         return Arrays.hashCode(hashCode);
@@ -879,29 +807,5 @@ class Board {
     @Override
     public boolean equals(final Object o) {
         return this == o || !(o == null || getClass() != o.getClass()) && Arrays.deepEquals(board, ((Board) o).board);
-    }
-
-    public static class BoardSituation {
-        private final Board board;
-        private final int player;
-
-        public BoardSituation(final Board board, final int player) {
-            this.board = board;
-//            System.arraycopy(board.hashCode, 0, this.board, 0, this.board.length);
-            this.player = player;
-        }
-
-        @Override
-        public boolean equals(final Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            final BoardSituation that = (BoardSituation) o;
-            return player == that.player && board.equals(that.board);
-        }
-
-        @Override
-        public int hashCode() {
-            return board.hashCode();
-        }
     }
 }
