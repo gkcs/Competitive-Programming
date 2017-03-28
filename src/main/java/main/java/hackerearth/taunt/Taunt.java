@@ -7,6 +7,9 @@ import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+/*
+todo: The piece position is set before the move is played
+ */
 public class Taunt {
     public static void main(String[] args) throws IOException {
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
@@ -59,7 +62,7 @@ class MinMax {
             startConfigs[i] = new Configuration(board.moves[player][i], board, 0);
         }
         Arrays.sort(startConfigs, getConfigurationComparator(player));
-//        printStats();
+        printStats();
         Move bestMove = startConfigs[0].move;
         while (depth < MAX_DEPTH && !timeOut) {
             bestMove = findBestMove(player);
@@ -67,7 +70,7 @@ class MinMax {
         }
         eval = startConfigs[0].strength;
         moves = board.options[player];
-//        printStats();
+        printStats();
         return bestMove;
     }
 
@@ -146,6 +149,15 @@ class MinMax {
                         final Move temp = killerMoves[0][0];
                         killerMoves[0][0] = killerMoves[0][1];
                         killerMoves[0][1] = temp;
+                        final int t = efficiency[0][0];
+                        efficiency[0][0] = efficiency[0][1];
+                        efficiency[0][1] = t;
+                    }
+                    if (efficiency[0][0] < 0) {
+                        killerMoves[0][0] = null;
+                    }
+                    if (efficiency[0][1] < 0) {
+                        killerMoves[0][1] = null;
                     }
                 }
             }
@@ -244,6 +256,15 @@ class MinMax {
                         final Move temp = killerMoves[level][0];
                         killerMoves[level][0] = killerMoves[level][1];
                         killerMoves[level][1] = temp;
+                        final int t = efficiency[level][0];
+                        efficiency[level][0] = efficiency[level][1];
+                        efficiency[level][1] = t;
+                    }
+                    if (efficiency[level][0] < 0) {
+                        killerMoves[level][0] = null;
+                    }
+                    if (efficiency[level][1] < 0) {
+                        killerMoves[level][1] = null;
                     }
                 }
             }
@@ -332,7 +353,7 @@ class Piece {
     }
 
     public Piece(final Piece piece) {
-        position = piece.position;
+        position = new Board.Cell(piece.position);
         coin = piece.coin;
         player = piece.player;
         movingUp = piece.movingUp;
@@ -438,11 +459,8 @@ class Board {
     public static final int ROWS = 10;
     public static final int COLS = 4;
     private static final int PLAYERS = 3;
-    public static final int HASH_CODE_SIZE = 3;
-    public static final int MOD = 63;
     public static final int MOVES_POSSIBLE = 27;
     final int[] pieceCount;
-    public final long[] hashCode;
     final Piece[][] board;
     final Move moves[][];
     final int options[];
@@ -452,7 +470,6 @@ class Board {
         this.moves = new Move[PLAYERS][MOVES_POSSIBLE];
         this.options = new int[PLAYERS];
         this.board = convertToBoard(board);
-        this.hashCode = getHashCode(board);
     }
 
     public Board(final Board game) {
@@ -460,7 +477,6 @@ class Board {
         this.moves = new Move[PLAYERS][MOVES_POSSIBLE];
         this.options = new int[PLAYERS];
         this.pieceCount = new int[PLAYERS];
-        this.hashCode = new long[HASH_CODE_SIZE];
         for (int i = 0; i < ROWS; i++) {
             for (int j = 0; j < COLS; j++) {
                 board[i][j] = game.board[i][j] == null ? null : new Piece(game.board[i][j]);
@@ -473,7 +489,6 @@ class Board {
         }
         System.arraycopy(game.options, 0, options, 0, PLAYERS);
         System.arraycopy(game.pieceCount, 0, pieceCount, 0, PLAYERS);
-        System.arraycopy(game.hashCode, 0, hashCode, 0, HASH_CODE_SIZE);
     }
 
     public Board play(final Move move) {
@@ -485,11 +500,7 @@ class Board {
     public void makeMove(final Move move) {
         final int player = move.piece.player;
         final int opponent = MinMax.flip(player);
-        for (int i = 0; i < options[opponent]; i++) {
-            if (moves[opponent][i].capturedPieces.contains(move.piece)) {
-                moves[opponent][i].capturedPieces.remove(move.piece);
-            }
-        }
+        removePieceFromCaptures(opponent, move.piece);
         for (int i = 0; i < options[player]; ) {
             if (moves[player][i].end.equals(move.end) || moves[player][i].start.equals(move.start)) {
                 options[player]--;
@@ -498,48 +509,9 @@ class Board {
                 i++;
             }
         }
-        pieceCount[opponent] -= move.capturedPieces.size();
-        for (final Piece capture : move.capturedPieces) {
-            for (int i = 0; i < options[opponent]; ) {
-                if (moves[opponent][i].start.equals(capture.position)) {
-                    options[opponent]--;
-                    moves[opponent][i] = moves[opponent][options[opponent]];
-                } else {
-                    i++;
-                }
-            }
-            for (int i = 0; i < options[player]; i++) {
-                if (moves[player][i].capturedPieces.contains(capture)) {
-                    moves[player][i].capturedPieces.remove(capture);
-                }
-            }
-            board[capture.position.x][capture.position.y] = null;
-            final int digit = capture.position.x * COLS + capture.position.y;
-            final int index = (digit << 2) & MOD;
-            hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
-        }
-        if ((move.end.x == 0 && move.start.x != 0) || (move.end.x == ROWS - 1 && move.start.x != ROWS - 1)
-                || (move.end.x == move.start.x
-                && (move.piece.coin.equals(Coin.BISHOP)
-                || (move.piece.coin.equals(Coin.ROOK)
-                && move.end.y == move.start.y)))) {
-            move.piece.movingUp = !move.piece.movingUp;
-        }
-        board[move.start.x][move.start.y] = null;
-        final int digit = move.start.x * COLS + move.start.y;
-        final int index = (digit << 2) & MOD;
-        hashCode[digit >> 4] &= ~(((1 << (index + 4)) - 1) & (1 << index));
-        board[move.end.x][move.end.y] = move.piece;
-        move.piece.position = new Cell(move.end.x, move.end.y);
-        {
-            final int moveBox = move.end.x * COLS + move.end.y;
-            final int moveIndex = (moveBox << 2) & MOD;
-            hashCode[moveBox >> 4] &= ~(((1 << (moveIndex + 4)) - 1) & (1 << moveIndex));
-            long hashValue = move.piece.movingUp ? 1 : 0;
-            hashValue |= move.piece.coin.index << 1;
-            hashValue |= (player == 2 ? 1 : 0) << 3;
-            hashCode[moveBox >> 4] |= (hashValue << moveIndex);
-        }
+        accountForCaptures(move, player, opponent);
+        changeDirectionIfRequired(move);
+        movePieceOnBoard(move);
         for (int k = -2; k <= 2; k++) {
             for (int l = -2; l <= 2; l++) {
                 if (!(k == 0 && l == 0)) {
@@ -547,9 +519,9 @@ class Board {
                     if (i > 0 && i < ROWS && j > 0 && j < COLS && board[i][j] != null && board[i][j].player == opponent) {
                         final Cell start = new Cell(i, j);
                         for (final int[] movesTo : board[i][j].coin.movesTo) {
-                            final int direction = board[i][j].movingUp ? 1 : -1;
                             if (!((j == 0 && movesTo[0] < 0)
                                     || (j == COLS - 1 && movesTo[0] > 0))) {
+                                final int direction = board[i][j].movingUp ? 1 : -1;
                                 int x = i + movesTo[1] * direction;
                                 int y = j + movesTo[0];
                                 if (x >= ROWS) {
@@ -571,10 +543,10 @@ class Board {
                                                                                     new Cell(x, y),
                                                                                     board[i][j],
                                                                                     captures);
-                                } else if (board[x][y] != null && !board[x][y].coin.equals(Coin.PAWN)) {
+                                } else if (!board[i][j].coin.equals(Coin.PAWN)) {
                                     if (Math.abs(movesTo[1]) == 2) {
-                                        int intermediateX = x + movesTo[1] / 2 * direction;
-                                        int intermediateY = y + movesTo[0] / 2;
+                                        int intermediateX = i + movesTo[1] / 2 * direction;
+                                        int intermediateY = j + movesTo[0] / 2;
                                         if (intermediateX >= ROWS) {
                                             intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
                                         } else if (intermediateX < 0) {
@@ -585,29 +557,15 @@ class Board {
                                         } else if (intermediateY < 0) {
                                             intermediateY = -intermediateY;
                                         }
-                                        int destinationX = x + movesTo[1] * direction;
-                                        int destinationY = y + movesTo[0];
-                                        if (destinationX >= ROWS) {
-                                            destinationX = ROWS - (destinationX + 1 - ROWS) - 1;
-                                        } else if (destinationX < 0) {
-                                            destinationX = -destinationX;
-                                        }
-                                        if (destinationY >= COLS) {
-                                            destinationY = COLS - (destinationY + 1 - COLS) - 1;
-                                        } else if (destinationY < 0) {
-                                            destinationY = -destinationY;
-                                        }
                                         if (intermediateX == move.end.x && intermediateY == move.end.y) {
-                                            final int finalX = x;
-                                            final int finalY = y;
                                             final int finalIntermediateX = intermediateX;
                                             final int finalIntermediateY = intermediateY;
-                                            final int finalDestinationX = destinationX;
-                                            final int finalDestinationY = destinationY;
+                                            final int finalDestinationX = x;
+                                            final int finalDestinationY = y;
                                             Arrays.stream(moves[opponent])
                                                     .filter(Objects::nonNull)
-                                                    .filter(m -> m.start.x == finalX)
-                                                    .filter(m -> m.start.y == finalY)
+                                                    .filter(m -> m.start.x == i)
+                                                    .filter(m -> m.start.y == j)
                                                     .filter(m -> m.end.x == finalDestinationX)
                                                     .filter(m -> m.end.y == finalDestinationY)
                                                     .findAny()
@@ -645,29 +603,54 @@ class Board {
                         if (board[x][y] != null) {
                             captures.add(board[x][y]);
                         }
-                        if (!board[i][j].coin.equals(Coin.PAWN)) {
-                            if (Math.abs(movesTo[1]) == 2) {
-                                int intermediateX = i + movesTo[1] / 2 * direction;
-                                int intermediateY = j + movesTo[0] / 2;
-                                if (intermediateX >= ROWS) {
-                                    intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
-                                } else if (intermediateX < 0) {
-                                    intermediateX = -intermediateX;
-                                }
-                                if (intermediateY >= COLS) {
-                                    intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
-                                } else if (intermediateY < 0) {
-                                    intermediateY = -intermediateY;
-                                }
-                                if (board[intermediateX][intermediateY] != null
-                                        && board[intermediateX][intermediateY].player == MinMax.flip(player)) {
-                                    captures.add(board[intermediateX][intermediateY]);
-                                }
-                            }
-                        }
+                        checkForIntermediates(board, i, j, player, movesTo, direction, captures);
+                        moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
+                    } else if (x == i && y == j) {
+                        final List<Piece> captures = new ArrayList<>(2);
+                        checkForIntermediates(board, i, j, player, movesTo, direction, captures);
                         moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
                     }
                 }
+            }
+        }
+    }
+
+    public void movePieceOnBoard(final Move move) {
+        board[move.start.x][move.start.y] = null;
+        board[move.end.x][move.end.y] = move.piece;
+        move.piece.position = new Cell(move.end.x, move.end.y);
+    }
+
+    public void changeDirectionIfRequired(final Move move) {
+        if ((move.end.x == 0 && move.start.x != 0) || (move.end.x == ROWS - 1 && move.start.x != ROWS - 1)
+                || (move.end.x == move.start.x
+                && (move.piece.coin.equals(Coin.BISHOP)
+                || (move.piece.coin.equals(Coin.ROOK)
+                && move.end.y == move.start.y)))) {
+            move.piece.movingUp = !move.piece.movingUp;
+        }
+    }
+
+    public void accountForCaptures(final Move move, final int player, final int opponent) {
+        pieceCount[opponent] -= move.capturedPieces.size();
+        for (final Piece capture : move.capturedPieces) {
+            for (int i = 0; i < options[opponent]; ) {
+                if (moves[opponent][i].start.equals(capture.position)) {
+                    options[opponent]--;
+                    moves[opponent][i] = moves[opponent][options[opponent]];
+                } else {
+                    i++;
+                }
+            }
+            removePieceFromCaptures(player, capture);
+            board[capture.position.x][capture.position.y] = null;
+        }
+    }
+
+    public void removePieceFromCaptures(final int opponent, final Piece piece) {
+        for (int i = 0; i < options[opponent]; i++) {
+            if (moves[opponent][i].capturedPieces.contains(piece)) {
+                moves[opponent][i].capturedPieces.remove(piece);
             }
         }
     }
@@ -717,26 +700,14 @@ class Board {
                                 if (pieces[x][y] != null) {
                                     captures.add(pieces[x][y]);
                                 }
-                                if (!pieces[i][j].coin.equals(Coin.PAWN)) {
-                                    if (Math.abs(movesTo[1]) == 2) {
-                                        int intermediateX = i + movesTo[1] / 2 * direction;
-                                        int intermediateY = j + movesTo[0] / 2;
-                                        if (intermediateX >= ROWS) {
-                                            intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
-                                        } else if (intermediateX < 0) {
-                                            intermediateX = -intermediateX;
-                                        }
-                                        if (intermediateY >= COLS) {
-                                            intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
-                                        } else if (intermediateY < 0) {
-                                            intermediateY = -intermediateY;
-                                        }
-                                        if (pieces[intermediateX][intermediateY] != null
-                                                && pieces[intermediateX][intermediateY].player == MinMax.flip(player)) {
-                                            captures.add(pieces[intermediateX][intermediateY]);
-                                        }
-                                    }
-                                }
+                                checkForIntermediates(pieces, i, j, player, movesTo, direction, captures);
+                                moves[player][options[player]++] = new Move(start,
+                                                                            new Cell(x, y),
+                                                                            pieces[i][j],
+                                                                            captures);
+                            } else if (x == i && y == j) {
+                                final List<Piece> captures = new ArrayList<>(2);
+                                checkForIntermediates(pieces, i, j, player, movesTo, direction, captures);
                                 moves[player][options[player]++] = new Move(start,
                                                                             new Cell(x, y),
                                                                             pieces[i][j],
@@ -750,16 +721,31 @@ class Board {
         return pieces;
     }
 
-    private long[] getHashCode(final byte[][] board) {
-        final long hashCode[] = new long[HASH_CODE_SIZE];
-        for (int i = 0; i < ROWS; i++) {
-            for (int j = 0; j < COLS; j++) {
-                final int digit = i * COLS + j;
-                final long b = board[i][j];
-                hashCode[digit >> 4] |= b << ((digit << 2) & MOD);
+    private void checkForIntermediates(final Piece[][] pieces,
+                                       final int i,
+                                       final int j,
+                                       final int player,
+                                       final int[] movesTo, final int direction, final List<Piece> captures) {
+        if (!pieces[i][j].coin.equals(Coin.PAWN)) {
+            if (Math.abs(movesTo[1]) == 2) {
+                int intermediateX = i + movesTo[1] / 2 * direction;
+                int intermediateY = j + movesTo[0] / 2;
+                if (intermediateX >= ROWS) {
+                    intermediateX = ROWS - (intermediateX + 1 - ROWS) - 1;
+                } else if (intermediateX < 0) {
+                    intermediateX = -intermediateX;
+                }
+                if (intermediateY >= COLS) {
+                    intermediateY = COLS - (intermediateY + 1 - COLS) - 1;
+                } else if (intermediateY < 0) {
+                    intermediateY = -intermediateY;
+                }
+                if (pieces[intermediateX][intermediateY] != null
+                        && pieces[intermediateX][intermediateY].player == MinMax.flip(player)) {
+                    captures.add(pieces[intermediateX][intermediateY]);
+                }
             }
         }
-        return hashCode;
     }
 
     public int heuristicValue(final int movesPlayed) {
@@ -783,7 +769,7 @@ class Board {
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(hashCode);
+        return Arrays.hashCode(board);
     }
 
     @Override
@@ -792,7 +778,6 @@ class Board {
                 "board=" + toReadableString() +
                 ", options=" + Arrays.toString(options) +
                 //", moves=" + Arrays.deepToString(moves) +
-                ", hashCode=" + Arrays.stream(hashCode).mapToObj(c -> (c)).map(Long::toBinaryString).collect(Collectors.toList()) +
                 '}';
     }
 
@@ -810,6 +795,11 @@ class Board {
 
     public static class Cell {
         final int x, y;
+
+        public Cell(final Cell position) {
+            x = position.x;
+            y = position.y;
+        }
 
         @Override
         public boolean equals(final Object o) {
