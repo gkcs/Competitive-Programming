@@ -44,6 +44,7 @@ public class TauntTest {
     @Test
     public void test3() {
         final MinMax minMax = new MinMax(700, 4);
+//        minMax.setTest(true);
         final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("131 131 131 121\n" +
                                                                                       "121 000 111 111\n" +
                                                                                       "111 000 000 000\n" +
@@ -136,6 +137,23 @@ public class TauntTest {
                                                                                       "210 210 220 220\n" +
                                                                                       "000 230 230 000"));
         Assert.assertNotEquals(new Board.Cell(4, 2), move.start);
+    }
+
+    @Test
+    public void test9() {
+        final MinMax minMax = new MinMax(700, 5);
+        final Move move = minMax.iterativeSearchForBestMove(2, constructBoard("131 131 131 121\n" +
+                                                                                      "121 000 111 111\n" +
+                                                                                      "111 000 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "121 000 000 000\n" +
+                                                                                      "000 000 220 000\n" +
+                                                                                      "220 000 000 210\n" +
+                                                                                      "210 210 000 220\n" +
+                                                                                      "000 230 230 230"));
+        Assert.assertEquals(new Board.Cell(7, 0), move.start);
+        Assert.assertEquals(new Board.Cell(5, 0), move.end);
     }
 
     private Board constructBoard(final String input) {
