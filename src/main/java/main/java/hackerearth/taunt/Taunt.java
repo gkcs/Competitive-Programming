@@ -466,7 +466,6 @@ class Board {
                 board[i][j] = game.board[i][j] == null ? null : new Piece(game.board[i][j]);
             }
         }
-        //todo: piece is being reused
         for (int i = 0; i < PLAYERS; i++) {
             for (int j = 0; j < game.options[i]; j++) {
                 moves[i][j] = new Move(game.moves[i][j]);
@@ -563,15 +562,15 @@ class Board {
                                 } else if (y < 0) {
                                     y = -y;
                                 }
-                                final List<Piece> captures = new ArrayList<>(2);
                                 if (x == move.end.x && y == move.end.y) {
+                                    final List<Piece> captures = new ArrayList<>(2);
+                                    if (board[x][y] != null) {
+                                        captures.add(board[x][y]);
+                                    }
                                     moves[opponent][options[opponent]++] = new Move(start,
                                                                                     new Cell(x, y),
                                                                                     board[i][j],
                                                                                     captures);
-                                    if (board[x][y] != null) {
-                                        captures.add(board[x][y]);
-                                    }
                                 } else if (board[x][y] != null && !board[x][y].coin.equals(Coin.PAWN)) {
                                     if (Math.abs(movesTo[1]) == 2) {
                                         int intermediateX = x + movesTo[1] / 2 * direction;
@@ -586,8 +585,33 @@ class Board {
                                         } else if (intermediateY < 0) {
                                             intermediateY = -intermediateY;
                                         }
+                                        int destinationX = x + movesTo[1] * direction;
+                                        int destinationY = y + movesTo[0];
+                                        if (destinationX >= ROWS) {
+                                            destinationX = ROWS - (destinationX + 1 - ROWS) - 1;
+                                        } else if (destinationX < 0) {
+                                            destinationX = -destinationX;
+                                        }
+                                        if (destinationY >= COLS) {
+                                            destinationY = COLS - (destinationY + 1 - COLS) - 1;
+                                        } else if (destinationY < 0) {
+                                            destinationY = -destinationY;
+                                        }
                                         if (intermediateX == move.end.x && intermediateY == move.end.y) {
-                                            captures.add(board[intermediateX][intermediateY]);
+                                            final int finalX = x;
+                                            final int finalY = y;
+                                            final int finalIntermediateX = intermediateX;
+                                            final int finalIntermediateY = intermediateY;
+                                            final int finalDestinationX = destinationX;
+                                            final int finalDestinationY = destinationY;
+                                            Arrays.stream(moves[opponent])
+                                                    .filter(Objects::nonNull)
+                                                    .filter(m -> m.start.x == finalX)
+                                                    .filter(m -> m.start.y == finalY)
+                                                    .filter(m -> m.end.x == finalDestinationX)
+                                                    .filter(m -> m.end.y == finalDestinationY)
+                                                    .findAny()
+                                                    .ifPresent(m -> m.capturedPieces.add(board[finalIntermediateX][finalIntermediateY]));
                                         }
                                     }
                                 }
@@ -618,7 +642,6 @@ class Board {
                     }
                     if (board[x][y] == null || board[x][y].player != player) {
                         final List<Piece> captures = new ArrayList<>(2);
-                        moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
                         if (board[x][y] != null) {
                             captures.add(board[x][y]);
                         }
@@ -642,6 +665,7 @@ class Board {
                                 }
                             }
                         }
+                        moves[player][options[player]++] = new Move(start, new Cell(x, y), board[i][j], captures);
                     }
                 }
             }
@@ -690,10 +714,6 @@ class Board {
                             }
                             if (pieces[x][y] == null || pieces[x][y].player != player) {
                                 final List<Piece> captures = new ArrayList<>(2);
-                                moves[player][options[player]++] = new Move(start,
-                                                                            new Cell(x, y),
-                                                                            pieces[i][j],
-                                                                            captures);
                                 if (pieces[x][y] != null) {
                                     captures.add(pieces[x][y]);
                                 }
@@ -717,6 +737,10 @@ class Board {
                                         }
                                     }
                                 }
+                                moves[player][options[player]++] = new Move(start,
+                                                                            new Cell(x, y),
+                                                                            pieces[i][j],
+                                                                            captures);
                             }
                         }
                     }
