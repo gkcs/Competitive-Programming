@@ -7,7 +7,7 @@ public class TauntTest {
 
     @Test
     public void test0() {
-        final MinMax minMax = new MinMax(1400, 10);
+        final MinMax minMax = new MinMax(700, 10);
         final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 000\n" +
                                                                                       "000 121 111 111\n" +
                                                                                       "111 131 131 121\n" +

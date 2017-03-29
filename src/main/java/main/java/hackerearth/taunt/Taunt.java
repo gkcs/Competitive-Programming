@@ -65,7 +65,7 @@ class MinMax {
 //        printStats();
         Move bestMove = startConfigs[0].move;
         while (depth < MAX_DEPTH && !timeOut) {
-            bestMove = findBestMove(player);
+            bestMove = findBestMove(player, board);
             depth++;
         }
         eval = startConfigs[0].strength;
@@ -80,20 +80,17 @@ class MinMax {
                                    .map(move -> "START " + move.start.toString() + " END " + move.end.toString())
                                    .collect(Collectors.joining("\n")));
         System.out.println(Arrays.stream(startConfigs)
-                                   .map(configuration -> Arrays.toString(configuration.board.pieceCount))
-                                   .collect(Collectors.toList()));
-        System.out.println(Arrays.stream(startConfigs)
                                    .map(configuration -> configuration.strength)
                                    .collect(Collectors.toList()));
     }
 
-    private Move findBestMove(final int player) {
-        int toTake = MIN_VALUE, toGive = MAX_VALUE;
+    private Move findBestMove(final int player, final Board board) {
+        int toTake = startConfigs[0].strength - 2, toGive = startConfigs[0].strength + 2;
         int result = player == 1 ? MIN_VALUE : MAX_VALUE;
         Move bestMove = startConfigs[0].move;
         try {
             for (final Configuration possibleConfig : startConfigs) {
-                final int moveValue = evaluate(possibleConfig.board,
+                final int moveValue = evaluate(board.play(possibleConfig.move),
                                                flip(player),
                                                0,
                                                toTake,
@@ -185,16 +182,16 @@ class MinMax {
                          final int a,
                          final int b) throws TimeoutException {
         int toTake = a, toGive = b;
-        int result = player == 1 ? MIN_VALUE : MAX_VALUE;
+        int result = player == 1 ? a : b;
         if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
             timeOut = true;
             throw new TimeoutException();
         }
-        final Integer terminated = board.isTerminated(movesPlayed + level);
+        final Integer terminated = board.isTerminated(movesPlayed + level, board.pieceCount[1], board.pieceCount[2]);
         if (terminated != null) {
             result = terminated;
         } else if (level >= depth) {
-            result = board.evaluatePosition();
+            result = board.evaluatePosition(board.pieceCount[1], board.pieceCount[2]);
         } else {
             final Configuration[] configurations = new Configuration[board.options[player]];
             for (int i = 0; i < configurations.length; i++) {
@@ -205,7 +202,7 @@ class MinMax {
             Arrays.sort(configurations, getConfigurationComparator(player));
             for (final Configuration possibleConfig : configurations) {
                 computations++;
-                final int moveValue = evaluate(possibleConfig.board,
+                final int moveValue = evaluate(board.play(possibleConfig.move),
                                                flip(player),
                                                level + 1,
                                                toTake,
@@ -280,18 +277,18 @@ class MinMax {
 
     public class Configuration {
         final Move move;
-        final Board board;
         int strength;
         final boolean killer;
 
         private Configuration(final Move move,
                               final Board board,
                               final int level) {
-            this.board = board.play(move);
             if (move.equals(killerMoves[level][0]) || move.equals(killerMoves[level][1])) {
                 killer = true;
             } else {
-                strength = this.board.heuristicValue(movesPlayed + level);
+                strength = board.heuristicValue(movesPlayed + level,
+                                                board.pieceCount[1] - (move.piece.player == 2 ? move.capturedPieces.size() : 0),
+                                                board.pieceCount[2] - (move.piece.player == 1 ? move.capturedPieces.size() : 0));
                 killer = false;
             }
             //board.undo(move);
@@ -302,7 +299,6 @@ class MinMax {
         public String toString() {
             return "Configuration{" +
                     "move=" + move +
-                    ", board=" + board +
                     ", strength=" + strength +
                     ", killer=" + killer +
                     '}';
@@ -547,7 +543,7 @@ class Board {
                                     if (board[x][y] != null) {
                                         captures.add(board[x][y]);
                                     }
-                                    Cell end = new Cell(x, y);
+                                    final Cell end = new Cell(x, y);
                                     int index = 0;
                                     for (; index < options[opponent]; index++) {
                                         Move current = moves[opponent][index];
@@ -768,20 +764,24 @@ class Board {
         }
     }
 
-    public int heuristicValue(final int movesPlayed) {
-        final Integer terminated = isTerminated(movesPlayed);
-        return terminated != null ? terminated : evaluatePosition();
+    public int heuristicValue(final int movesPlayed,
+                              final int firstPlayerPieceCount,
+                              final int secondPlayerPieceCount) {
+        final Integer terminated = isTerminated(movesPlayed, firstPlayerPieceCount, secondPlayerPieceCount);
+        return terminated != null ? terminated : evaluatePosition(firstPlayerPieceCount, secondPlayerPieceCount);
     }
 
-    public int evaluatePosition() {
-        return pieceCount[1] - pieceCount[2];
+    public int evaluatePosition(final int firstPlayerPieceCount, final int secondPlayerPieceCount) {
+        return firstPlayerPieceCount - secondPlayerPieceCount;
     }
 
-    public Integer isTerminated(final int moveNumber) {
-        final boolean hasEnded = moveNumber >= 100 || pieceCount[1] == 0 || pieceCount[2] == 0;
+    public Integer isTerminated(final int moveNumber,
+                                final int firstPLayerPieceCount,
+                                final int secondPLayerPieceCount) {
+        final boolean hasEnded = moveNumber >= 100 || firstPLayerPieceCount == 0 || secondPLayerPieceCount == 0;
         if (hasEnded) {
-            assert pieceCount[1] + pieceCount[2] > 0;
-            return pieceCount[1] > pieceCount[2] ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
+            assert firstPLayerPieceCount + secondPLayerPieceCount > 0;
+            return firstPLayerPieceCount > secondPLayerPieceCount ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
         } else {
             return null;
         }
