@@ -33,6 +33,7 @@ public class Taunt {
 }
 
 class MinMax {
+    public static final int PIECE_VALUE = 1000;
     public static int MAX_DEPTH = 60;
     public final int TIME_OUT;
     private final int movesPlayed;
@@ -85,16 +86,12 @@ class MinMax {
     }
 
     private Move findBestMove(final int player, final Board board) {
-        int toTake = startConfigs[0].strength - 2, toGive = startConfigs[0].strength + 2;
-        int result = player == 1 ? MIN_VALUE : MAX_VALUE;
+        int toTake = startConfigs[0].strength - 2 * PIECE_VALUE, toGive = startConfigs[0].strength + 2 * PIECE_VALUE;
+        int result = player == 1 ? toTake : toGive;
         Move bestMove = startConfigs[0].move;
         try {
             for (final Configuration possibleConfig : startConfigs) {
-                final int moveValue = evaluate(board.play(possibleConfig.move),
-                                               flip(player),
-                                               0,
-                                               toTake,
-                                               toGive);
+                final int moveValue = evaluate(board.play(possibleConfig.move), flip(player), 0, toTake, toGive);
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -106,13 +103,9 @@ class MinMax {
                 if (player == 1 && result < moveValue) {
                     result = moveValue;
                     bestMove = possibleConfig.move;
-//                    System.out.println("RESULT: " + result + " " + possibleConfig.move + " PLAYER: " + player + " " +
-//                                               "depth: " + depth);
                 } else if (player == 2 && result > moveValue) {
                     result = moveValue;
                     bestMove = possibleConfig.move;
-//                    System.out.println("RESULT: " + result + " " + possibleConfig.move + " PLAYER: " + player + " " +
-//                                               "depth: " + depth);
                 }
                 if (toTake >= toGive) {
                     if (possibleConfig.killer) {
@@ -191,7 +184,121 @@ class MinMax {
         if (terminated != null) {
             result = terminated;
         } else if (level >= depth) {
-            result = board.evaluatePosition(board.pieceCount[1], board.pieceCount[2]);
+            result = quietSearch(board, player, level, a, b);
+        } else {
+            boolean furtherProcessingRequired = true;
+            if (!board.isEndGame() && depth > 4) {
+                final int previousPlayer = MinMax.flip(player);
+                final int minimumTheyWillTake = previousPlayer == 1 ? toTake : toGive - 1;
+                final int nullSearchResult = nullSearch(board,
+                                                        previousPlayer,
+                                                        level + 3,
+                                                        minimumTheyWillTake,
+                                                        minimumTheyWillTake + 1);
+                if (Math.abs(nullSearchResult) == MinMax.MAX_VALUE) {
+                    furtherProcessingRequired = true;
+                } else if (previousPlayer == 2 && nullSearchResult > minimumTheyWillTake) {
+                    result = toGive;
+                    furtherProcessingRequired = false;
+                } else if (previousPlayer == 1 && nullSearchResult <= minimumTheyWillTake) {
+                    result = toTake;
+                    furtherProcessingRequired = false;
+                }
+            }
+            if (furtherProcessingRequired) {
+                final Configuration[] configurations = new Configuration[board.options[player]];
+                for (int i = 0; i < configurations.length; i++) {
+                    configurations[i] = new Configuration(board.moves[player][i],
+                                                          board,
+                                                          level);
+                }
+                Arrays.sort(configurations, getConfigurationComparator(player));
+                for (final Configuration possibleConfig : configurations) {
+                    computations++;
+                    final int moveValue = evaluate(board.play(possibleConfig.move),
+                                                   flip(player),
+                                                   level + 1,
+                                                   toTake,
+                                                   toGive);
+                    possibleConfig.strength = moveValue;
+                    if (player == 1) {
+                        if (toTake < moveValue) {
+                            toTake = moveValue;
+                        }
+                    } else if (toGive > moveValue) {
+                        toGive = moveValue;
+                    }
+                    if (player == 1 && result < moveValue) {
+                        result = moveValue;
+                    } else if (player == 2 && result > moveValue) {
+                        result = moveValue;
+                    }
+                    if (toTake >= toGive) {
+                        result = moveValue;
+                        if (possibleConfig.killer) {
+                            if (possibleConfig.move.equals(killerMoves[level][0])) {
+                                efficiency[level][0]++;
+                            } else {
+                                efficiency[level][1]++;
+                                if (efficiency[level][0] < efficiency[level][1]) {
+                                    final Move temp = killerMoves[level][0];
+                                    killerMoves[level][0] = killerMoves[level][1];
+                                    killerMoves[level][1] = temp;
+                                }
+                            }
+                        } else {
+                            if (killerMoves[level][0] == null) {
+                                killerMoves[level][0] = possibleConfig.move;
+                                efficiency[level][0] = 1;
+                            } else if (killerMoves[level][1] == null || efficiency[level][1] < 1) {
+                                killerMoves[level][1] = possibleConfig.move;
+                                efficiency[level][1] = 1;
+                            }
+                        }
+                        break;
+                    } else if (possibleConfig.killer) {
+                        if (possibleConfig.move.equals(killerMoves[level][0])) {
+                            efficiency[level][0]--;
+                        } else if (possibleConfig.move.equals(killerMoves[level][1])) {
+                            efficiency[level][1]--;
+                        }
+                        if (efficiency[level][0] < efficiency[level][1] && killerMoves[level][1] != null) {
+                            final Move temp = killerMoves[level][0];
+                            killerMoves[level][0] = killerMoves[level][1];
+                            killerMoves[level][1] = temp;
+                            final int t = efficiency[level][0];
+                            efficiency[level][0] = efficiency[level][1];
+                            efficiency[level][1] = t;
+                        }
+                        if (efficiency[level][0] < 0) {
+                            killerMoves[level][0] = null;
+                        }
+                        if (efficiency[level][1] < 0) {
+                            killerMoves[level][1] = null;
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private int nullSearch(final Board board,
+                           final int player,
+                           final int level,
+                           final int a,
+                           final int b) throws TimeoutException {
+        int toTake = a, toGive = b;
+        int result = player == 1 ? a : b;
+        if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
+            timeOut = true;
+            throw new TimeoutException();
+        }
+        final Integer terminated = board.isTerminated(movesPlayed + level, board.pieceCount[1], board.pieceCount[2]);
+        if (terminated != null) {
+            result = terminated;
+        } else if (level >= depth) {
+            result = quietSearch(board, player, level + 1, a, b);
         } else {
             final Configuration[] configurations = new Configuration[board.options[player]];
             for (int i = 0; i < configurations.length; i++) {
@@ -202,11 +309,11 @@ class MinMax {
             Arrays.sort(configurations, getConfigurationComparator(player));
             for (final Configuration possibleConfig : configurations) {
                 computations++;
-                final int moveValue = evaluate(board.play(possibleConfig.move),
-                                               flip(player),
-                                               level + 1,
-                                               toTake,
-                                               toGive);
+                final int moveValue = nullSearch(board.play(possibleConfig.move),
+                                                 flip(player),
+                                                 level + 1,
+                                                 toTake,
+                                                 toGive);
                 possibleConfig.strength = moveValue;
                 if (player == 1) {
                     if (toTake < moveValue) {
@@ -222,52 +329,72 @@ class MinMax {
                 }
                 if (toTake >= toGive) {
                     result = moveValue;
-                    if (possibleConfig.killer) {
-                        if (possibleConfig.move.equals(killerMoves[level][0])) {
-                            efficiency[level][0]++;
-                        } else {
-                            efficiency[level][1]++;
-                            if (efficiency[level][0] < efficiency[level][1]) {
-                                final Move temp = killerMoves[level][0];
-                                killerMoves[level][0] = killerMoves[level][1];
-                                killerMoves[level][1] = temp;
-                            }
-                        }
-                    } else {
-                        if (killerMoves[level][0] == null) {
-                            killerMoves[level][0] = possibleConfig.move;
-                            efficiency[level][0] = 1;
-                        } else if (killerMoves[level][1] == null || efficiency[level][1] < 1) {
-                            killerMoves[level][1] = possibleConfig.move;
-                            efficiency[level][1] = 1;
-                        }
-                    }
                     break;
-                } else if (possibleConfig.killer) {
-                    if (possibleConfig.move.equals(killerMoves[level][0])) {
-                        efficiency[level][0]--;
-                    } else if (possibleConfig.move.equals(killerMoves[level][1])) {
-                        efficiency[level][1]--;
+                }
+            }
+        }
+        return result;
+    }
+
+    private int quietSearch(final Board board,
+                            final int player,
+                            final int level,
+                            final int a,
+                            final int b) throws TimeoutException {
+        int toTake = a, toGive = b;
+        int result = player == 1 ? a : b;
+        if (!test && System.currentTimeMillis() - startTime >= TIME_OUT) {
+            timeOut = true;
+            throw new TimeoutException();
+        }
+        final Integer terminated = board.isTerminated(movesPlayed + level, board.pieceCount[1], board.pieceCount[2]);
+        if (terminated != null) {
+            result = terminated;
+        } else if (level >= depth + 5) {
+            result = board.evaluatePosition(board.pieceCount[1], board.pieceCount[2]);
+        } else {
+            final List<Move> captureMoves = Arrays.stream(board.moves[player])
+                    .filter(Objects::nonNull)
+                    .filter(Move::isACapture)
+                    .collect(Collectors.toList());
+            if (captureMoves.isEmpty()) {
+                result = board.evaluatePosition(board.pieceCount[1], board.pieceCount[2]);
+            } else {
+                //System.out.println("Quiet search level: " + (level - depth) + " move: " + captureMoves.size());
+                final Configuration[] configurations = new Configuration[captureMoves.size()];
+                for (int i = 0; i < captureMoves.size(); i++) {
+                    configurations[i] = new Configuration(captureMoves.get(i),
+                                                          board,
+                                                          level);
+                }
+                Arrays.sort(configurations, getConfigurationComparator(player));
+                for (final Configuration possibleConfig : configurations) {
+                    computations++;
+                    final int moveValue = quietSearch(board.play(possibleConfig.move),
+                                                      flip(player),
+                                                      level + 1,
+                                                      toTake,
+                                                      toGive);
+                    possibleConfig.strength = moveValue;
+                    if (player == 1) {
+                        if (toTake < moveValue) {
+                            toTake = moveValue;
+                        }
+                    } else if (toGive > moveValue) {
+                        toGive = moveValue;
                     }
-                    if (efficiency[level][0] < efficiency[level][1] && killerMoves[level][1] != null) {
-                        final Move temp = killerMoves[level][0];
-                        killerMoves[level][0] = killerMoves[level][1];
-                        killerMoves[level][1] = temp;
-                        final int t = efficiency[level][0];
-                        efficiency[level][0] = efficiency[level][1];
-                        efficiency[level][1] = t;
+                    if (player == 1 && result < moveValue) {
+                        result = moveValue;
+                    } else if (player == 2 && result > moveValue) {
+                        result = moveValue;
                     }
-                    if (efficiency[level][0] < 0) {
-                        killerMoves[level][0] = null;
-                    }
-                    if (efficiency[level][1] < 0) {
-                        killerMoves[level][1] = null;
+                    if (toTake >= toGive) {
+                        result = moveValue;
+                        break;
                     }
                 }
             }
         }
-        //System.out.println("LEVEL: " + level + " " + Arrays.toString(killerMoves[level]));
-        //board.undo(move);
         return result;
     }
 
@@ -448,7 +575,7 @@ class Move {
 
     public boolean isACapture() {
         //TODO: Add quiet search
-        return capturedPieces.isEmpty();
+        return !capturedPieces.isEmpty();
     }
 
     public String describe() {
@@ -768,20 +895,20 @@ class Board {
                               final int firstPlayerPieceCount,
                               final int secondPlayerPieceCount) {
         final Integer terminated = isTerminated(movesPlayed, firstPlayerPieceCount, secondPlayerPieceCount);
-        return terminated != null ? terminated : evaluatePosition(firstPlayerPieceCount, secondPlayerPieceCount);
+        return terminated != null ? terminated : firstPlayerPieceCount - secondPlayerPieceCount;
     }
 
     public int evaluatePosition(final int firstPlayerPieceCount, final int secondPlayerPieceCount) {
-        return firstPlayerPieceCount - secondPlayerPieceCount;
+        return (firstPlayerPieceCount - secondPlayerPieceCount) * MinMax.PIECE_VALUE;
     }
 
     public Integer isTerminated(final int moveNumber,
-                                final int firstPLayerPieceCount,
-                                final int secondPLayerPieceCount) {
-        final boolean hasEnded = moveNumber >= 100 || firstPLayerPieceCount == 0 || secondPLayerPieceCount == 0;
+                                final int firstPlayerPieceCount,
+                                final int secondPlayerPieceCount) {
+        final boolean hasEnded = moveNumber >= 100 || firstPlayerPieceCount == 0 || secondPlayerPieceCount == 0;
         if (hasEnded) {
-            assert firstPLayerPieceCount + secondPLayerPieceCount > 0;
-            return firstPLayerPieceCount > secondPLayerPieceCount ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
+            assert firstPlayerPieceCount + secondPlayerPieceCount > 0;
+            return firstPlayerPieceCount > secondPlayerPieceCount ? MinMax.MAX_VALUE : MinMax.MIN_VALUE;
         } else {
             return null;
         }
@@ -811,6 +938,10 @@ class Board {
             stringBuilder.append('\n');
         }
         return stringBuilder.toString();
+    }
+
+    public boolean isEndGame() {
+        return pieceCount[1] + pieceCount[2] < 9;
     }
 
     public static class Cell {
