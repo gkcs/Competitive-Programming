@@ -247,9 +247,9 @@ class MinMax {
                     }
                     break;
                 } else if (possibleConfig.killer) {
-                    if (killerMoves[level][0].equals(possibleConfig.move)) {
+                    if (possibleConfig.move.equals(killerMoves[level][0])) {
                         efficiency[level][0]--;
-                    } else {
+                    } else if (possibleConfig.move.equals(killerMoves[level][1])) {
                         efficiency[level][1]--;
                     }
                     if (efficiency[level][0] < efficiency[level][1] && killerMoves[level][1] != null) {
@@ -503,6 +503,9 @@ class Board {
     }
 
     public void makeMove(final Move move) {
+//        if (move.start.equals(new Cell(5, 0)) && move.end.equals(new Cell(7, 0))) {
+//            System.out.println("inside");
+//        }
         final int player = move.piece.player;
         final int opponent = MinMax.flip(player);
         removePieceFromCaptures(opponent, move.piece);
@@ -521,7 +524,7 @@ class Board {
             for (int l = -2; l <= 2; l++) {
                 if (!(k == 0 && l == 0)) {
                     final int i = move.end.x + k, j = move.end.y + l;
-                    if (i > 0 && i < ROWS && j > 0 && j < COLS && board[i][j] != null && board[i][j].player == opponent) {
+                    if (i >= 0 && i < ROWS && j >= 0 && j < COLS && board[i][j] != null && board[i][j].player == opponent) {
                         final Cell start = new Cell(i, j);
                         for (final int[] movesTo : board[i][j].coin.movesTo) {
                             if (!((j == 0 && movesTo[0] < 0)
@@ -539,7 +542,6 @@ class Board {
                                 } else if (y < 0) {
                                     y = -y;
                                 }
-                                //todo: check on rebound to same place
                                 if (x == move.end.x && y == move.end.y) {
                                     final List<Piece> captures = new ArrayList<>(2);
                                     if (board[x][y] != null) {

@@ -4,6 +4,23 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TauntTest {
+
+    @Test
+    public void test0() {
+        final MinMax minMax = new MinMax(1400, 10);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 000\n" +
+                                                                                      "000 121 111 111\n" +
+                                                                                      "111 131 131 121\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "121 000 230 000\n" +
+                                                                                      "000 000 220 000\n" +
+                                                                                      "000 230 000 210\n" +
+                                                                                      "210 000 000 220\n" +
+                                                                                      "220 210 000 230"));
+        Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
+    }
+
     @Test
     public void test1() {
         final MinMax minMax = new MinMax(700, 28);
@@ -154,6 +171,39 @@ public class TauntTest {
                                                                                       "000 230 230 230"));
         Assert.assertEquals(new Board.Cell(7, 0), move.start);
         Assert.assertEquals(new Board.Cell(5, 0), move.end);
+    }
+
+    @Test
+    public void test10() {
+        final MinMax minMax = new MinMax(700, 22);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 000\n" +
+                                                                                      "000 000 111 111\n" +
+                                                                                      "111 131 131 121\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "121 230 230 000\n" +
+                                                                                      "000 220 000 210\n" +
+                                                                                      "000 230 000 000\n" +
+                                                                                      "210 000 000 220\n" +
+                                                                                      "000 210 000 000"));
+        Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
+    }
+
+    @Test
+    public void test11() {
+        final MinMax minMax = new MinMax(700, 24);
+//        minMax.setTest(true);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 000\n" +
+                                                                                      "000 111 000 111\n" +
+                                                                                      "111 131 131 121\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "121 230 230 000\n" +
+                                                                                      "000 220 000 210\n" +
+                                                                                      "000 230 000 000\n" +
+                                                                                      "210 000 000 220\n" +
+                                                                                      "210 000 000 000"));
+        Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
     }
 
     private Board constructBoard(final String input) {
