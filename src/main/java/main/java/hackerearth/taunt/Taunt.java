@@ -889,35 +889,6 @@ class Board {
     }
 
     public int evaluatePosition(final Board board) {
-        double firstPlayerMoveScore = 0, secondPlayerMoveScore = 0;
-        double firstPlayerBlockScore = 0, secondPlayerBlockScore = 0;
-        double firstPlayerCaptureScore = 0, secondPlayerCaptureScore = 0;
-        final Set<Cell> firstPlayerDestinations = Arrays.stream(board.moves[1])
-                .filter(Objects::nonNull)
-                .map(move -> move.end)
-                .collect(Collectors.toSet()),
-                secondPlayerDestinations = Arrays.stream(board.moves[2])
-                        .filter(Objects::nonNull)
-                        .map(move -> move.end)
-                        .collect(Collectors.toSet());
-        for (int i = 0; i < board.options[1]; i++) {
-            if (moves[1][i].isACapture()) {
-                firstPlayerCaptureScore++;
-            } else if (secondPlayerDestinations.contains(moves[1][i].end)) {
-                firstPlayerBlockScore++;
-            } else {
-                firstPlayerMoveScore++;
-            }
-        }
-        for (int i = 0; i < board.options[2]; i++) {
-            if (moves[2][i].isACapture()) {
-                secondPlayerCaptureScore++;
-            } else if (secondPlayerDestinations.contains(moves[1][i].end)) {
-                secondPlayerBlockScore++;
-            } else {
-                secondPlayerMoveScore++;
-            }
-        }
         return (board.pieceCount[1] - board.pieceCount[2]) * MinMax.PIECE_VALUE;
     }
 

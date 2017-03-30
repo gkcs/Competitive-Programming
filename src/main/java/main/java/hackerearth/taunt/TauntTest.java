@@ -206,6 +206,25 @@ public class TauntTest {
         Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
     }
 
+    @Test
+    public void test13() {
+        final MinMax minMax = new MinMax(700, 10);
+//        minMax.setTest(true);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 121\n" +
+                                                                                      "121 121 111 111\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "111 000 000 000\n" +
+                                                                                      "131 220 000 131\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "210 000 000 000\n" +
+                                                                                      "000 000 000 210\n" +
+                                                                                      "000 210 000 220\n" +
+                                                                                      "220 230 230 230"));
+        minMax.metrics();
+        System.out.println(move);
+        Assert.assertNotEquals(new Board.Cell(4, 0), move.start);
+    }
+
     private Board constructBoard(final String input) {
         final String rows[] = input.split("\n");
         final byte[][] board = new byte[Board.ROWS][Board.COLS];
