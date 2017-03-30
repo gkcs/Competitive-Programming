@@ -30,7 +30,7 @@ public class Taunt {
 }
 
 class MinMax {
-    public static final int PIECE_VALUE = 1000;
+    public static final int PIECE_VALUE = 5000;
     public static int MAX_DEPTH = 60;
     public final int TIME_OUT;
     private final int movesPlayed;
@@ -348,14 +348,14 @@ class MinMax {
         if (terminated != null) {
             result = terminated;
         } else if (level >= depth + 5) {
-            result = board.evaluatePosition(board);
+            result = board.evaluatePosition(player);
         } else {
             final List<Move> captureMoves = Arrays.stream(board.moves[player])
                     .filter(Objects::nonNull)
                     .filter(Move::isACapture)
                     .collect(Collectors.toList());
             if (captureMoves.isEmpty()) {
-                result = board.evaluatePosition(board);
+                result = board.evaluatePosition(player);
             } else {
                 //System.out.println("Quiet search level: " + (level - depth) + " move: " + captureMoves.size());
                 final Configuration[] configurations = new Configuration[captureMoves.size()];
@@ -472,7 +472,7 @@ class Piece {
     }
 
     public Piece(final Piece piece) {
-        position = new Board.Cell(piece.position);
+        position = Board.Cell.CELLS[piece.position.x][piece.position.y];
         coin = piece.coin;
         player = piece.player;
         movingUp = piece.movingUp;
@@ -621,9 +621,6 @@ class Board {
     }
 
     public void makeMove(final Move move) {
-//        if (move.start.equals(new Cell(5, 0)) && move.end.equals(new Cell(7, 0))) {
-//            System.out.println("inside");
-//        }
         final int player = move.piece.player;
         final int opponent = MinMax.flip(player);
         removePieceFromCaptures(opponent, move.piece);
@@ -814,8 +811,7 @@ class Board {
                     final Cell start = new Cell(i, j);
                     for (final int[] movesTo : pieces[i][j].coin.movesTo) {
                         final int direction = pieces[i][j].movingUp ? 1 : -1;
-                        if (!((j == 0 && movesTo[0] < 0)
-                                || (j == COLS - 1 && movesTo[0] > 0))) {
+                        if (!((j == 0 && movesTo[0] < 0) || (j == COLS - 1 && movesTo[0] > 0))) {
                             int x = i + movesTo[1] * direction;
                             int y = j + movesTo[0];
                             if (x >= ROWS) {
@@ -854,6 +850,43 @@ class Board {
         return pieces;
     }
 
+    public Move[][] getSupports() {
+        final Move[][] moves = new Move[PLAYERS][MOVES_POSSIBLE];
+        final int[] options = new int[PLAYERS];
+        for (int i = 0; i < ROWS; i++) {
+            for (int j = 0; j < COLS; j++) {
+                if (board[i][j] != null) {
+                    final int player = board[i][j].player;
+                    final Cell start = new Cell(i, j);
+                    for (final int[] movesTo : board[i][j].coin.movesTo) {
+                        final int direction = board[i][j].movingUp ? 1 : -1;
+                        if (!((j == 0 && movesTo[0] < 0) || (j == COLS - 1 && movesTo[0] > 0))) {
+                            int x = i + movesTo[1] * direction;
+                            int y = j + movesTo[0];
+                            if (x >= ROWS) {
+                                x = ROWS - (x + 1 - ROWS) - 1;
+                            } else if (x < 0) {
+                                x = -x;
+                            }
+                            if (y >= COLS) {
+                                y = COLS - (y + 1 - COLS) - 1;
+                            } else if (y < 0) {
+                                y = -y;
+                            }
+                            if (board[x][y] != null && board[x][y].player == player && (x != i || y != j)) {
+                                moves[player][options[player]++] = new Move(start,
+                                                                            new Cell(x, y),
+                                                                            board[i][j],
+                                                                            Collections.emptyList());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return moves;
+    }
+
     private void checkForIntermediates(final Piece[][] pieces,
                                        final int i,
                                        final int j,
@@ -885,40 +918,74 @@ class Board {
                               final int firstPlayerPieceCount,
                               final int secondPlayerPieceCount) {
         final Integer terminated = isTerminated(movesPlayed, firstPlayerPieceCount, secondPlayerPieceCount);
-        return terminated != null ? terminated : firstPlayerPieceCount - secondPlayerPieceCount;
+        return terminated != null ? terminated : (firstPlayerPieceCount - secondPlayerPieceCount) * MinMax.PIECE_VALUE;
     }
 
-    public int evaluatePosition(final Board board) {
-        double firstPlayerMoveScore = 0, secondPlayerMoveScore = 0;
-        double firstPlayerBlockScore = 0, secondPlayerBlockScore = 0;
-        double firstPlayerCaptureScore = 0, secondPlayerCaptureScore = 0;
-        final Set<Cell> firstPlayerDestinations = Arrays.stream(board.moves[1])
-                .filter(Objects::nonNull)
-                .map(move -> move.end)
-                .collect(Collectors.toSet()),
-                secondPlayerDestinations = Arrays.stream(board.moves[2])
-                        .filter(Objects::nonNull)
-                        .map(move -> move.end)
-                        .collect(Collectors.toSet());
-        for (int i = 0; i < board.options[1]; i++) {
+    public int evaluatePosition(final int player) {
+        int firstPlayerMoveScore = 0, secondPlayerMoveScore = 0;
+        int firstPlayerBlockScore = 0, secondPlayerBlockScore = 0;
+        int firstPlayerCaptureScore = 0, secondPlayerCaptureScore = 0;
+        final Set<Cell> firstPlayerDestinations = new HashSet<>(), secondPlayerDestinations = new HashSet<>();
+        for (int i = 0; i < moves[1].length && moves[1][i] != null; i++) {
+            final Move move = moves[1][i];
+            firstPlayerDestinations.add(move.end);
+        }
+        for (int i = 0; i < moves[2].length && moves[2][i] != null; i++) {
+            final Move move = moves[2][i];
+            secondPlayerDestinations.add(move.end);
+        }
+        for (int i = 0; i < options[1]; i++) {
             if (moves[1][i].isACapture()) {
-                firstPlayerCaptureScore++;
+                firstPlayerCaptureScore += moves[1][i].capturedPieces.size();
             } else if (secondPlayerDestinations.contains(moves[1][i].end)) {
                 firstPlayerBlockScore++;
             } else {
                 firstPlayerMoveScore++;
             }
         }
-        for (int i = 0; i < board.options[2]; i++) {
+        for (int i = 0; i < options[2]; i++) {
             if (moves[2][i].isACapture()) {
-                secondPlayerCaptureScore++;
-            } else if (secondPlayerDestinations.contains(moves[1][i].end)) {
+                secondPlayerCaptureScore += moves[2][i].capturedPieces.size();
+            } else if (firstPlayerDestinations.contains(moves[2][i].end)) {
                 secondPlayerBlockScore++;
             } else {
                 secondPlayerMoveScore++;
             }
         }
-        return (board.pieceCount[1] - board.pieceCount[2]) * MinMax.PIECE_VALUE;
+        if (player == 1) {
+            firstPlayerCaptureScore *= 2;
+            firstPlayerBlockScore /= 2;
+            firstPlayerMoveScore *= 2;
+        } else {
+            secondPlayerCaptureScore *= 2;
+            secondPlayerBlockScore /= 2;
+            secondPlayerMoveScore *= 2;
+        }
+        int result = (pieceCount[1] - pieceCount[2]) * MinMax.PIECE_VALUE;
+        result += (firstPlayerCaptureScore - secondPlayerCaptureScore);
+        result += (firstPlayerBlockScore - secondPlayerBlockScore);
+        result += (firstPlayerMoveScore - secondPlayerMoveScore);
+        final Move[][] supports = getSupports();
+        final Map<Cell, Integer> firstSupportCount = new HashMap<>();
+        final Map<Cell, Integer> secondSupportCount = new HashMap<>();
+        for (int i = 0; i < supports[1].length && supports[1][i] != null; i++) {
+            final Move support = supports[1][i];
+            firstSupportCount.put(support.end, firstSupportCount.getOrDefault(support.end, 0) + 1);
+        }
+        for (int i = 0; i < supports[2].length && supports[2][i] != null; i++) {
+            final Move support = supports[2][i];
+            secondSupportCount.put(support.end, secondSupportCount.getOrDefault(support.end, 0) + 1);
+        }
+        result += firstSupportCount.size() - secondSupportCount.size();
+        for (final Integer value : firstSupportCount.values()) {
+            result += value;
+        }
+        for (final Integer value : secondSupportCount.values()) {
+            result -= value;
+        }
+        result += (pieceCount[1] - firstSupportCount.size()) * -20;
+        result += (pieceCount[2] - secondSupportCount.size()) * 20;
+        return result;
     }
 
     public Integer isTerminated(final int moveNumber,
@@ -963,12 +1030,17 @@ class Board {
     }
 
     public static class Cell {
-        final int x, y;
+        public static Cell[][] CELLS = new Cell[ROWS][COLS];
 
-        public Cell(final Cell position) {
-            x = position.x;
-            y = position.y;
+        static {
+            for (int i = 0; i < ROWS; i++) {
+                for (int j = 0; j < COLS; j++) {
+                    CELLS[i][j] = new Cell(i, j);
+                }
+            }
         }
+
+        final int x, y;
 
         @Override
         public boolean equals(final Object o) {
@@ -983,7 +1055,7 @@ class Board {
             return 31 * x + y;
         }
 
-        public Cell(final int x, final int y) {
+        private Cell(final int x, final int y) {
             this.x = x;
             this.y = y;
         }

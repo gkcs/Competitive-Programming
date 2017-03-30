@@ -18,7 +18,7 @@ public class TauntTest {
                                                                                       "000 230 000 210\n" +
                                                                                       "210 000 000 220\n" +
                                                                                       "220 210 000 230"));
-        Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
+        Assert.assertNotEquals(Board.Cell.CELLS[7][0], move.end);
     }
 
     @Test
@@ -36,9 +36,8 @@ public class TauntTest {
                                                                                       "210 210 220 000\n" +
                                                                                       "000 230 000 000"));
         System.out.println(move);
-        Assert.assertTrue(new Board.Cell(1, 1).equals(move.end)
-                                  || (new Board.Cell(2, 2).equals(move.end)
-                && new Board.Cell(0, 0).equals(move.start)));
+        Assert.assertTrue(Board.Cell.CELLS[1][1].equals(move.end) || (Board.Cell.CELLS[2][2].equals(move.end)
+                && Board.Cell.CELLS[0][0].equals(move.start)));
     }
 
     @Test
@@ -54,8 +53,8 @@ public class TauntTest {
                                                                                       "000 000 000 210\n" +
                                                                                       "210 210 000 220\n" +
                                                                                       "220 000 230 230"));
-        Assert.assertEquals(new Board.Cell(0, 3), move.start);
-        Assert.assertEquals(new Board.Cell(2, 3), move.end);
+        Assert.assertEquals(Board.Cell.CELLS[0][3], move.start);
+        Assert.assertEquals(Board.Cell.CELLS[2][3], move.end);
     }
 
     @Test
@@ -72,7 +71,7 @@ public class TauntTest {
                                                                                       "220 000 000 210\n" +
                                                                                       "210 210 000 220\n" +
                                                                                       "000 230 230 230"));
-        Assert.assertNotEquals(new Board.Cell(5, 1), move.start);
+        Assert.assertNotEquals(Board.Cell.CELLS[5][1], move.start);
     }
 
     @Test
@@ -103,7 +102,7 @@ public class TauntTest {
                                                                                       "220 230 230 210\n" +
                                                                                       "210 210 000 220\n" +
                                                                                       "000 230 000 000"));
-        Assert.assertNotEquals(new Board.Cell(4, 1), move.start);
+        Assert.assertNotEquals(Board.Cell.CELLS[4][1], move.start);
     }
 
     @Test
@@ -119,8 +118,8 @@ public class TauntTest {
                                                                                       "220 230 230 210\n" +
                                                                                       "210 210 000 220\n" +
                                                                                       "000 230 000 000"));
-        Assert.assertEquals(new Board.Cell(6, 2), move.start);
-        Assert.assertEquals(new Board.Cell(6, 1), move.end);
+        Assert.assertEquals(Board.Cell.CELLS[6][2], move.start);
+        Assert.assertEquals(Board.Cell.CELLS[6][1], move.end);
     }
 
     @Test
@@ -136,7 +135,7 @@ public class TauntTest {
                                                                                       "000 000 220 000\n" +
                                                                                       "000 210 000 000\n" +
                                                                                       "000 000 000 230"));
-        Assert.assertEquals(new Board.Cell(3, 0), move.end);
+        Assert.assertEquals(Board.Cell.CELLS[3][0], move.end);
     }
 
     @Test
@@ -153,7 +152,7 @@ public class TauntTest {
                                                                                       "220 230 000 210\n" +
                                                                                       "210 210 220 220\n" +
                                                                                       "000 230 230 000"));
-        Assert.assertNotEquals(new Board.Cell(4, 2), move.start);
+        Assert.assertNotEquals(Board.Cell.CELLS[4][2], move.start);
     }
 
     @Test
@@ -169,8 +168,8 @@ public class TauntTest {
                                                                                       "220 000 000 210\n" +
                                                                                       "210 210 000 220\n" +
                                                                                       "000 230 230 230"));
-        Assert.assertEquals(new Board.Cell(7, 0), move.start);
-        Assert.assertEquals(new Board.Cell(5, 0), move.end);
+        Assert.assertEquals(Board.Cell.CELLS[7][0], move.start);
+        Assert.assertEquals(Board.Cell.CELLS[5][0], move.end);
     }
 
     @Test
@@ -186,7 +185,7 @@ public class TauntTest {
                                                                                       "000 230 000 000\n" +
                                                                                       "210 000 000 220\n" +
                                                                                       "000 210 000 000"));
-        Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
+        Assert.assertNotEquals(Board.Cell.CELLS[7][0], move.end);
     }
 
     @Test
@@ -203,7 +202,26 @@ public class TauntTest {
                                                                                       "000 230 000 000\n" +
                                                                                       "210 000 000 220\n" +
                                                                                       "210 000 000 000"));
-        Assert.assertNotEquals(new Board.Cell(7, 0), move.end);
+        Assert.assertNotEquals(Board.Cell.CELLS[7][0], move.end);
+    }
+
+    @Test
+    public void test13() {
+        final MinMax minMax = new MinMax(1500, 10);
+//        minMax.setTest(true);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 121\n" +
+                                                                                      "121 121 111 111\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "111 000 000 000\n" +
+                                                                                      "131 220 000 131\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "210 000 000 000\n" +
+                                                                                      "000 000 000 210\n" +
+                                                                                      "000 210 000 220\n" +
+                                                                                      "220 230 230 230"));
+        minMax.metrics();
+        System.out.println(move);
+        Assert.assertNotEquals(Board.Cell.CELLS[4][0], move.start);
     }
 
     private Board constructBoard(final String input) {
