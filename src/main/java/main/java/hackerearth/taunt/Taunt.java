@@ -7,9 +7,6 @@ import java.util.*;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-/*
-todo: The piece position is set before the move is played
- */
 public class Taunt {
     public static void main(String[] args) throws IOException {
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
@@ -187,7 +184,7 @@ class MinMax {
             result = quietSearch(board, player, level, a, b);
         } else {
             boolean furtherProcessingRequired = true;
-            if (!board.isEndGame() && depth > 4) {
+            if (!board.isEndGame(level) && depth > 4) {
                 final int previousPlayer = MinMax.flip(player);
                 final int minimumTheyWillTake = previousPlayer == 1 ? toTake : toGive - 1;
                 final int nullSearchResult = nullSearch(board,
@@ -351,14 +348,14 @@ class MinMax {
         if (terminated != null) {
             result = terminated;
         } else if (level >= depth + 5) {
-            result = board.evaluatePosition(board.pieceCount[1], board.pieceCount[2]);
+            result = board.evaluatePosition(board);
         } else {
             final List<Move> captureMoves = Arrays.stream(board.moves[player])
                     .filter(Objects::nonNull)
                     .filter(Move::isACapture)
                     .collect(Collectors.toList());
             if (captureMoves.isEmpty()) {
-                result = board.evaluatePosition(board.pieceCount[1], board.pieceCount[2]);
+                result = board.evaluatePosition(board);
             } else {
                 //System.out.println("Quiet search level: " + (level - depth) + " move: " + captureMoves.size());
                 final Configuration[] configurations = new Configuration[captureMoves.size()];
@@ -418,7 +415,6 @@ class MinMax {
                                                 board.pieceCount[2] - (move.piece.player == 1 ? move.capturedPieces.size() : 0));
                 killer = false;
             }
-            //board.undo(move);
             this.move = move;
         }
 
@@ -574,7 +570,6 @@ class Move {
     }
 
     public boolean isACapture() {
-        //TODO: Add quiet search
         return !capturedPieces.isEmpty();
     }
 
@@ -798,11 +793,6 @@ class Board {
         }
     }
 
-    //todo:implement this
-//    public Board undo(final Move move) {
-//        return this;
-//    }
-
     private Piece[][] convertToBoard(final byte[][] board) {
         final Piece[][] pieces = new Piece[ROWS][COLS];
         for (int i = 0; i < ROWS; i++) {
@@ -898,8 +888,37 @@ class Board {
         return terminated != null ? terminated : firstPlayerPieceCount - secondPlayerPieceCount;
     }
 
-    public int evaluatePosition(final int firstPlayerPieceCount, final int secondPlayerPieceCount) {
-        return (firstPlayerPieceCount - secondPlayerPieceCount) * MinMax.PIECE_VALUE;
+    public int evaluatePosition(final Board board) {
+        double firstPlayerMoveScore = 0, secondPlayerMoveScore = 0;
+        double firstPlayerBlockScore = 0, secondPlayerBlockScore = 0;
+        double firstPlayerCaptureScore = 0, secondPlayerCaptureScore = 0;
+        final Set<Cell> firstPlayerDestinations = Arrays.stream(board.moves[1])
+                .filter(Objects::nonNull)
+                .map(move -> move.end)
+                .collect(Collectors.toSet()),
+                secondPlayerDestinations = Arrays.stream(board.moves[2])
+                        .filter(Objects::nonNull)
+                        .map(move -> move.end)
+                        .collect(Collectors.toSet());
+        for (int i = 0; i < board.options[1]; i++) {
+            if (moves[1][i].isACapture()) {
+                firstPlayerCaptureScore++;
+            } else if (secondPlayerDestinations.contains(moves[1][i].end)) {
+                firstPlayerBlockScore++;
+            } else {
+                firstPlayerMoveScore++;
+            }
+        }
+        for (int i = 0; i < board.options[2]; i++) {
+            if (moves[2][i].isACapture()) {
+                secondPlayerCaptureScore++;
+            } else if (secondPlayerDestinations.contains(moves[1][i].end)) {
+                secondPlayerBlockScore++;
+            } else {
+                secondPlayerMoveScore++;
+            }
+        }
+        return (board.pieceCount[1] - board.pieceCount[2]) * MinMax.PIECE_VALUE;
     }
 
     public Integer isTerminated(final int moveNumber,
@@ -924,7 +943,6 @@ class Board {
         return "Board{" +
                 "board=" + toReadableString() +
                 ", options=" + Arrays.toString(options) +
-                //", moves=" + Arrays.deepToString(moves) +
                 '}';
     }
 
@@ -940,8 +958,8 @@ class Board {
         return stringBuilder.toString();
     }
 
-    public boolean isEndGame() {
-        return pieceCount[1] + pieceCount[2] < 9;
+    public boolean isEndGame(final int level) {
+        return pieceCount[1] + pieceCount[2] < 9 || level > 50;
     }
 
     public static class Cell {
