@@ -207,7 +207,7 @@ public class TauntTest {
 
     @Test
     public void test13() {
-        final MinMax minMax = new MinMax(1500, 10);
+        final MinMax minMax = new MinMax(700, 10);
 //        minMax.setTest(true);
         final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 121\n" +
                                                                                       "121 121 111 111\n" +
@@ -223,6 +223,45 @@ public class TauntTest {
         System.out.println(move);
         Assert.assertNotEquals(Board.Cell.CELLS[4][0], move.start);
     }
+
+    @Test
+    public void test14() {
+        final MinMax minMax = new MinMax(7000, 24);
+        //minMax.setTest(true);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 000\n" +
+                                                                                      "121 000 111 111\n" +
+                                                                                      "111 131 000 121\n" +
+                                                                                      "121 230 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "000 000 230 230\n" +
+                                                                                      "000 000 000 220\n" +
+                                                                                      "220 210 000 210\n" +
+                                                                                      "210 000 220 000\n" +
+                                                                                      "000 000 000 000"));
+        minMax.metrics();
+        System.out.println(move);
+        Assert.assertNotEquals(Board.Cell.CELLS[1][3], move.start);
+    }
+
+    @Test
+    public void test15() {
+        final MinMax minMax = new MinMax(7500, 22);
+        //minMax.setTest(true);
+        final Move move = minMax.iterativeSearchForBestMove(1, constructBoard("000 000 131 000\n" +
+                                                                                      "121 000 111 111\n" +
+                                                                                      "111 131 131 121\n" +
+                                                                                      "121 000 000 000\n" +
+                                                                                      "000 000 000 000\n" +
+                                                                                      "000 230 230 230\n" +
+                                                                                      "000 000 000 220\n" +
+                                                                                      "220 210 000 210\n" +
+                                                                                      "210 000 220 000\n" +
+                                                                                      "000 000 000 000"));
+        minMax.metrics();
+        System.out.println(move);
+        Assert.assertNotEquals(Board.Cell.CELLS[2][2], move.start);
+    }
+
 
     private Board constructBoard(final String input) {
         final String rows[] = input.split("\n");
