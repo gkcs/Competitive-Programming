@@ -8,12 +8,11 @@ import java.io.*;
 public class DISTNUM3 {
     private static final int MAX = 100000;
     static List<Integer>[] adj;
-    static int clock = 0, eulerTour[], start[], end[], V;
+    static int clock = 0, start[], end[], V;
     /* LCA <NlogN , logN> dependency : level , log , V , DP = new int[log(V) + 1][V + 1];, parent (for the first level of DP) */
     static int DP[][];
     static int level[];
     static int parent[];
-    static int freq[];
     static int distinctCount;
     static boolean marked[];
     static int val[];
@@ -54,38 +53,40 @@ public class DISTNUM3 {
         return u;
     }
 
-    static void dfs(int u, int par, int lev) {
+    static void dfs(int u, int par, int lev, final int[] eulerTour) {
         eulerTour[clock] = u;
         start[u] = clock++;
         parent[u] = par;
         level[u] = lev;
         for (final int v : adj[u]) {
             if (v != par) {
-                dfs(v, u, lev + 1);
+                dfs(v, u, lev + 1, eulerTour);
             }
         }
         eulerTour[clock] = u;
         end[u] = clock++;
     }
 
-    static void visit(int idx) {
+    static void visit(final int idx, final int[] frequency) {
         if (marked[idx]) {
-            freq[val[idx]]--;
-            if (freq[val[idx]] == 0)
+            frequency[val[idx]]--;
+            if (frequency[val[idx]] == 0) {
                 distinctCount--;
+            }
         } else {
-            freq[val[idx]]++;
-            if (freq[val[idx]] == 1)
+            frequency[val[idx]]++;
+            if (frequency[val[idx]] == 1) {
                 distinctCount++;
+            }
         }
         marked[idx] = !marked[idx];
     }
 
-    static void update(int idx, int newVal) {
+    static void update(final int idx, final int newVal, final int[] frequency) {
         if (marked[idx]) {
-            visit(idx);
+            visit(idx, frequency);
             val[idx] = newVal;
-            visit(idx);
+            visit(idx, frequency);
         } else {
             val[idx] = newVal;
         }
@@ -95,10 +96,6 @@ public class DISTNUM3 {
         final InputReader in = new InputReader(System.in);
         V = in.readInt();
         final int Q = in.readInt();
-        final Query queries[] = new Query[MAX];
-        final Update updates[] = new Update[MAX];
-        final Map<Integer, Integer> map = new HashMap<>();    // Used to compress the keys
-
         adj = new ArrayList[V + 1];
         for (int i = 1; i <= V; i++) {
             adj[i] = new ArrayList<>();
@@ -107,6 +104,7 @@ public class DISTNUM3 {
         for (int i = 1; i <= V; i++) {
             val[i] = in.readInt();
         }
+        final Map<Integer, Integer> map = new HashMap<>();
         for (int i = 1; i <= V; i++) {
             if (!map.containsKey(val[i])) {
                 map.put(val[i], map.size());
@@ -124,15 +122,17 @@ public class DISTNUM3 {
         }
         start = new int[V + 1];
         end = new int[V + 1];
-        eulerTour = new int[2 * (V + 1)];
+        final int[] eulerTour = new int[2 * (V + 1)];
         level = new int[V + 1];
         marked = new boolean[V + 1];
         DP = new int[log(V) + 1][V + 1];
         parent = new int[V + 1];
         final int block[] = new int[2 * (V + 1)];
-        dfs(1, 0, 0);
+        dfs(1, 0, 0, eulerTour);
         binaryLift();
         int numberOfQueries = 0, numberOfUpdates = 0;
+        final Query queries[] = new Query[MAX];
+        final Update updates[] = new Update[MAX];
         for (int i = 0; i < Q; i++) {
             if (in.readInt() == 1) { // Query
                 final int u = in.readInt();
@@ -163,7 +163,6 @@ public class DISTNUM3 {
                 currVal[idx] = newVal;
             }
         }
-        freq = new int[map.size()];
         final int BLOCK_SIZE = (int) (Math.pow(2 * V, 2.0 / 3.0) + 1);
         for (int i = 0; i < block.length; i++) {
             block[i] = i / BLOCK_SIZE;
@@ -180,43 +179,44 @@ public class DISTNUM3 {
         final int ans[] = new int[numberOfQueries];
         int moLeft = -1, moRight = -1;
         int currentUpdateCount = 0;
+        final int[] freq = new int[map.size()];
         for (int i = 0; i < numberOfQueries; i++) {
             final Query query = queries[i];
             while (currentUpdateCount < query.updatesTillNow) {
                 final Update update = updates[currentUpdateCount];
-                update(update.idx, update.newVal);
+                update(update.idx, update.newVal, freq);
                 currentUpdateCount++;
             }
             while (currentUpdateCount > query.updatesTillNow) {
                 currentUpdateCount--;
                 final Update update = updates[currentUpdateCount];
-                update(update.idx, update.prevVal);
+                update(update.idx, update.prevVal, freq);
             }
             while (moLeft < query.L - 1) {
                 moLeft++;
-                visit(eulerTour[moLeft]);
+                visit(eulerTour[moLeft], freq);
             }
             while (moLeft >= query.L) {
-                visit(eulerTour[moLeft]);
+                visit(eulerTour[moLeft], freq);
                 moLeft--;
             }
             while (moRight < query.R) {
                 moRight++;
-                visit(eulerTour[moRight]);
+                visit(eulerTour[moRight], freq);
             }
             while (moRight > query.R) {
-                visit(eulerTour[moRight]);
+                visit(eulerTour[moRight], freq);
                 moRight--;
             }
             if (query.LCA != -1) {
-                visit(query.LCA);
+                visit(query.LCA, freq);
             }
             ans[query.id] = distinctCount;
             if (query.LCA != -1) {
-                visit(query.LCA);
+                visit(query.LCA, freq);
             }
         }
-        final StringBuilder stringBuilder=new StringBuilder();
+        final StringBuilder stringBuilder = new StringBuilder();
         for (final int a : ans) {
             stringBuilder.append(a).append('\n');
         }
