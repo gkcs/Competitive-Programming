@@ -348,14 +348,14 @@ class MinMax {
         if (terminated != null) {
             result = terminated;
         } else if (level >= depth + 5) {
-            result = board.evaluatePosition(board);
+            result = board.evaluatePosition();
         } else {
             final List<Move> captureMoves = Arrays.stream(board.moves[player])
                     .filter(Objects::nonNull)
                     .filter(Move::isACapture)
                     .collect(Collectors.toList());
             if (captureMoves.isEmpty()) {
-                result = board.evaluatePosition(board);
+                result = board.evaluatePosition();
             } else {
                 //System.out.println("Quiet search level: " + (level - depth) + " move: " + captureMoves.size());
                 final Configuration[] configurations = new Configuration[captureMoves.size()];
@@ -472,7 +472,7 @@ class Piece {
     }
 
     public Piece(final Piece piece) {
-        position = new Board.Cell(piece.position);
+        position = Board.Cell.CELLS[piece.position.x][piece.position.y];
         coin = piece.coin;
         player = piece.player;
         movingUp = piece.movingUp;
@@ -621,9 +621,6 @@ class Board {
     }
 
     public void makeMove(final Move move) {
-//        if (move.start.equals(new Cell(5, 0)) && move.end.equals(new Cell(7, 0))) {
-//            System.out.println("inside");
-//        }
         final int player = move.piece.player;
         final int opponent = MinMax.flip(player);
         removePieceFromCaptures(opponent, move.piece);
@@ -814,8 +811,7 @@ class Board {
                     final Cell start = new Cell(i, j);
                     for (final int[] movesTo : pieces[i][j].coin.movesTo) {
                         final int direction = pieces[i][j].movingUp ? 1 : -1;
-                        if (!((j == 0 && movesTo[0] < 0)
-                                || (j == COLS - 1 && movesTo[0] > 0))) {
+                        if (!((j == 0 && movesTo[0] < 0) || (j == COLS - 1 && movesTo[0] > 0))) {
                             int x = i + movesTo[1] * direction;
                             int y = j + movesTo[0];
                             if (x >= ROWS) {
@@ -885,11 +881,11 @@ class Board {
                               final int firstPlayerPieceCount,
                               final int secondPlayerPieceCount) {
         final Integer terminated = isTerminated(movesPlayed, firstPlayerPieceCount, secondPlayerPieceCount);
-        return terminated != null ? terminated : firstPlayerPieceCount - secondPlayerPieceCount;
+        return terminated != null ? terminated : (firstPlayerPieceCount - secondPlayerPieceCount) * MinMax.PIECE_VALUE;
     }
 
-    public int evaluatePosition(final Board board) {
-        return (board.pieceCount[1] - board.pieceCount[2]) * MinMax.PIECE_VALUE;
+    public int evaluatePosition() {
+        return (pieceCount[1] - pieceCount[2]) * MinMax.PIECE_VALUE;
     }
 
     public Integer isTerminated(final int moveNumber,
@@ -934,12 +930,17 @@ class Board {
     }
 
     public static class Cell {
-        final int x, y;
+        public static Cell[][] CELLS = new Cell[ROWS][COLS];
 
-        public Cell(final Cell position) {
-            x = position.x;
-            y = position.y;
+        static {
+            for (int i = 0; i < ROWS; i++) {
+                for (int j = 0; j < COLS; j++) {
+                    CELLS[i][j] = new Cell(i, j);
+                }
+            }
         }
+
+        final int x, y;
 
         @Override
         public boolean equals(final Object o) {
@@ -954,7 +955,7 @@ class Board {
             return 31 * x + y;
         }
 
-        public Cell(final int x, final int y) {
+        private Cell(final int x, final int y) {
             this.x = x;
             this.y = y;
         }
