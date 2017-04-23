@@ -64,15 +64,23 @@ public class Pirates {
             final Ship myBestShip = myShips.stream().max(Comparator.comparingInt(o -> o.rum)).orElseThrow(RuntimeException::new);
             final Ship opponentBestShip = enemyShips.stream().max(Comparator.comparingInt(o -> o.rum)).orElseThrow(RuntimeException::new);
             for (final Ship myShip : myShips) {
-                Ship nearestEnemy = enemyShips.get(0);
                 final boolean canFireNow = canFire[myShip.id];
+                Ship nearestEnemy = enemyShips.get(0);
                 for (final Ship enemyShip : enemyShips) {
                     if (myShip.calculateDistance(enemyShip) < myShip.calculateDistance(nearestEnemy)) {
                         nearestEnemy = enemyShip;
                     }
                 }
+                Ship nearestAlly = myShips.get(0);
+                for (final Ship ship : myShips) {
+                    if (myShip.calculateDistance(ship) < myShip.calculateDistance(nearestAlly)) {
+                        nearestAlly = ship;
+                    }
+                }
                 final CannonBall incomingCannonBall = myShip.willHitOnTime(cannonBalls);
-                if (incomingCannonBall != null) {
+                if (myShip.speed == 0 && nearestAlly.calculateDistance(myShip) < 3 && nearestAlly.speed == 0) {
+                    System.out.println(MOVE + random.nextInt(Ship.HEIGHT) + " " + random.nextInt(Ship.WIDTH));
+                } else if (incomingCannonBall != null) {
                     System.err.println("Gonna be hit with cannons!" + incomingCannonBall.targetX + " " + incomingCannonBall.targetY);
                     if (myShip.speed > 0) {
                         System.out.println(Math.random() > 0.5 ? STARBOARD : PORT);
@@ -94,85 +102,27 @@ public class Pirates {
                         }
                     } else if (myShip.calculateDistance(nearestEnemy) <= 9) {
                         final Coordinate shot = myShip.shoot(nearestEnemy);
-                        if (shot.x != -1 && canFireNow && isNotFriendlyFire(shot, myShips, myShip)) {
+                        if (shot != null && canFireNow && isNotFriendlyFire(shot, myShips, myShip)) {
                             System.out.println(FIRE + shot.x + " " + shot.y);
                             canFire[myShip.id] = false;
                         } else {
                             if (barrels.isEmpty()) {
-                                if (myShip.speed < 2 && myShip.isAligned(opponentBestShip) && myShip.calculateDistance(opponentBestShip) > 2) {
-                                    System.err.println(opponentBestShip + " " + myShip.closestOrientation(opponentBestShip));
-                                    System.out.println(FASTER);
-                                } else {
-                                    myShip.rotation = (myShip.rotation + 1) % 6;
-                                    if (myShip.isAligned(opponentBestShip)) {
-                                        System.out.println(STARBOARD);
-                                    } else {
-                                        myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                        if (myShip.isAligned(opponentBestShip)) {
-                                            System.out.println(PORT);
-                                        } else {
-                                            System.out.println(MOVE + opponentBestShip.x + " " + opponentBestShip.y);
-                                        }
-                                    }
-                                }
+                                System.out.println(MOVE + opponentBestShip.x + " " + opponentBestShip.y);
                             } else {
                                 final Barrel nearest = findTheNearestBarrel(barrels, myShip);
                                 if (nearestEnemy.rum <= myShip.rum - 25) {
-                                    if (myShip.speed < 2 && myShip.calculateDistance(nearest) > 2 && myShip.isAligned(nearest)) {
-                                        System.err.println(nearest + " " + myShip.closestOrientation(nearest));
-                                        System.out.println(FASTER);
-                                    } else {
-                                        myShip.rotation = (myShip.rotation + 1) % 6;
-                                        if (myShip.isAligned(nearestEnemy)) {
-                                            System.out.println(STARBOARD);
-                                        } else {
-                                            myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                            if (myShip.isAligned(nearestEnemy)) {
-                                                System.out.println(PORT);
-                                            } else {
-                                                System.out.println(MOVE + nearestEnemy.x + " " + nearestEnemy.y);
-                                            }
-                                        }
-                                    }
-                                } else if (myShip.speed < 2 && myShip.calculateDistance(nearest) > 2 && myShip.isAligned(nearest)) {
-                                    System.err.println(nearest + " " + myShip.closestOrientation(nearest));
-                                    System.out.println(FASTER);
+                                    System.out.println(MOVE + nearestEnemy.x + " " + nearestEnemy.y);
                                 } else {
-                                    myShip.rotation = (myShip.rotation + 1) % 6;
-                                    if (myShip.isAligned(nearest)) {
-                                        System.out.println(STARBOARD);
-                                    } else {
-                                        myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                        if (myShip.isAligned(nearest)) {
-                                            System.out.println(PORT);
-                                        } else {
-                                            System.out.println(MOVE + nearest.x + " " + nearest.y);
-                                        }
-                                    }
+                                    System.out.println(MOVE + nearest.x + " " + nearest.y);
                                 }
                             }
                         }
                     } else if (!barrels.isEmpty()) {
                         final Barrel nearest = findTheNearestBarrel(barrels, myShip);
                         if (myShip.rum < 87 || myShip.calculateDistance(nearest) > 5) {
-                            if (myShip.speed < 2 && myShip.calculateDistance(nearest) > 2 && myShip.isAligned(nearest)) {
-                                System.err.println(nearest + " " + myShip.closestOrientation(nearest));
-                                System.out.println(FASTER);
-                            } else {
-                                myShip.rotation = (myShip.rotation + 1) % 6;
-                                if (myShip.isAligned(nearest)) {
-                                    System.out.println(STARBOARD);
-                                } else {
-                                    myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                    if (myShip.isAligned(nearest)) {
-                                        System.out.println(PORT);
-                                    } else {
-                                        System.out.println(MOVE + nearest.x + " " + nearest.y);
-                                    }
-                                }
-                            }
+                            System.out.println(MOVE + nearest.x + " " + nearest.y);
                         } else {
-                            if (myShip.speed == 0 && myShip.calculateDistance(nearest) > 4) {
+                            if (myShip.speed == 0 && myShip.calculateDistance(nearest) > 3) {
                                 System.out.println(MOVE + nearest.x + " " + nearest.y);
                             } else {
                                 System.out.println(SLOWER);
@@ -192,67 +142,21 @@ public class Pirates {
                         } else {
                             final Coordinate run = evade(myShips, myBestShip, opponentBestShip, myShip, nearestEnemy);
                             if (run.isOutSideMap()) {
-                                System.out.println(MOVE + random.nextInt(21) + " " + random.nextInt(21));
+                                System.out.println(MOVE + random.nextInt(Ship.HEIGHT) + " " + random.nextInt(Ship.WIDTH));
                             } else {
-                                if (myShip.speed < 2 && myShip.calculateDistance(nearestEnemy) > 2 && myShip.isAligned(nearestEnemy)) {
-                                    System.err.println(nearestEnemy + " " + myShip.closestOrientation(nearestEnemy));
-                                    System.out.println(FASTER);
-                                } else {
-                                    myShip.rotation = (myShip.rotation + 1) % 6;
-                                    if (myShip.isAligned(run)) {
-                                        System.out.println(STARBOARD);
-                                    } else {
-                                        myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                        if (myShip.isAligned(run)) {
-                                            System.out.println(PORT);
-                                        } else {
-                                            System.out.println(MOVE + run.x + " " + run.y);
-                                        }
-                                    }
-                                }
+                                System.out.println(MOVE + run.x + " " + run.y);
                             }
                         }
                     } else if (myShip.calculateDistance(nearestEnemy) <= 10) {
                         final Coordinate shot = myShip.shoot(nearestEnemy);
-                        if (shot.x != -1 && canFireNow) {
+                        if (shot != null && canFireNow) {
                             System.out.println(FIRE + shot.x + " " + shot.y);
                             canFire[myShip.id] = false;
                         } else {
-                            if (myShip.speed < 2 && myShip.calculateDistance(opponentBestShip) > 2 && myShip.isAligned(opponentBestShip)) {
-                                System.err.println(opponentBestShip + " " + myShip.closestOrientation(opponentBestShip));
-                                System.out.println(FASTER);
-                            } else {
-                                myShip.rotation = (myShip.rotation + 1) % 6;
-                                if (myShip.isAligned(opponentBestShip)) {
-                                    System.out.println(STARBOARD);
-                                } else {
-                                    myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                    if (myShip.isAligned(opponentBestShip)) {
-                                        System.out.println(PORT);
-                                    } else {
-                                        System.out.println(MOVE + opponentBestShip.x + " " + opponentBestShip.y);
-                                    }
-                                }
-                            }
+                            System.out.println(MOVE + opponentBestShip.x + " " + opponentBestShip.y);
                         }
                     } else {
-                        //pursue
-                        if (myShip.speed < 2 && myShip.calculateDistance(opponentBestShip) > 2 && myShip.isAligned(opponentBestShip)) {
-                            System.err.println(opponentBestShip + " " + myShip.closestOrientation(opponentBestShip));
-                            System.out.println(FASTER);
-                        } else {
-                            myShip.rotation = (myShip.rotation + 1) % 6;
-                            if (myShip.isAligned(opponentBestShip)) {
-                                System.out.println(STARBOARD);
-                            } else {
-                                myShip.rotation = (6 + myShip.rotation - 2) % 6;
-                                if (myShip.isAligned(opponentBestShip)) {
-                                    System.out.println(PORT);
-                                } else {
-                                    System.out.println(MOVE + opponentBestShip.x + " " + opponentBestShip.y);
-                                }
-                            }
-                        }
+                        System.out.println(MOVE + opponentBestShip.x + " " + opponentBestShip.y);
                     }
                 }
                 if (!canFireNow) {
@@ -264,7 +168,7 @@ public class Pirates {
     }
 
     private static boolean isNotFriendlyFire(final Coordinate shot, final List<Ship> myShips, final Ship attackingShip) {
-        List<CannonBall> cannonBall = Collections.singletonList(new CannonBall(shot.x, shot.y, attackingShip.id, CannonBall.findTimeToReach(attackingShip, shot), random.nextInt(1000)));
+        final List<CannonBall> cannonBall = Collections.singletonList(new CannonBall(shot.x, shot.y, attackingShip.id, CannonBall.findTimeToReach(attackingShip, shot), random.nextInt(1000)));
         for (final Ship myShip : myShips) {
             if (myShip.willHitOnTime(cannonBall) != null) {
                 return false;
@@ -390,7 +294,7 @@ class Barrel extends Entity {
 
 class Ship extends Entity {
     public static final int MAX_MINE_DISTANCE = 5;
-    public static final double MAX_CANNON_TIME = 4;
+    public static final int MAX_CANNON_TIME = 4;
     int rotation;
     int speed;
     int rum;
@@ -420,7 +324,7 @@ class Ship extends Entity {
                     return prediction;
                 }
             }
-            return new Coordinate(-1, -1);
+            return null;
         }
     }
 
@@ -429,14 +333,10 @@ class Ship extends Entity {
             return null;
         }
         Coordinate current = this;
-        int rumOnTheWay = 0;
         for (int i = 0; i <= MAX_MINE_DISTANCE; i++) {
-            if (current instanceof Barrel) {
-                rumOnTheWay += ((Barrel) current).rum;
-            }
             for (final Mine mine : mines) {
                 if (isAHit(current, mine)) {
-                    return !(rumOnTheWay > 25 && i >= MAX_MINE_DISTANCE - 1) ? mine : null;
+                    return mine;
                 }
             }
             final int[] movement = current.x % 2 == 0 ? evenMovement[rotation] : oddMovement[rotation];
@@ -460,14 +360,10 @@ class Ship extends Entity {
             return null;
         }
         Coordinate current = this;
-        int rumOnTheWay = 0;
         for (int i = 0; i <= MAX_CANNON_TIME; i++) {
-            if (current instanceof Barrel) {
-                rumOnTheWay += ((Barrel) current).rum;
-            }
             for (final CannonBall cannonBall : cannonBalls) {
                 if (cannonBall.turnsToHitTarget == i + 1 && isAHit(current, new Coordinate(cannonBall.targetX, cannonBall.targetY))) {
-                    return !(rumOnTheWay > 25 && i >= MAX_CANNON_TIME - 1) ? cannonBall : null;
+                    return cannonBall;
                 }
             }
             final int[] movement = current.x % 2 == 0 ? evenMovement[rotation] : oddMovement[rotation];
@@ -477,16 +373,6 @@ class Ship extends Entity {
             }
         }
         return null;
-    }
-
-    public int closestOrientation(final Coordinate coordinate) {
-        final int angle = (int) (Math.round((360 + Math.toDegrees(Math.atan2((coordinate.y - y), coordinate.x - x))) / 60.0) % 6);
-        System.err.println(coordinate.x + " " + coordinate.y + " " + x + " " + y + " " + angle);
-        return angle % 6;
-    }
-
-    public boolean isAligned(final Coordinate coordinate) {
-        return rotation == closestOrientation(coordinate);
     }
 }
 
