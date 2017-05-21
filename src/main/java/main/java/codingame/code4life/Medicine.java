@@ -24,9 +24,9 @@ public class Medicine {
                     sample.makeVisible(null);
                 }
                 if (sample.material.carriedBy == 0) {
-                    myBot.samples.put(sample.material.sampleId, sample);
+                    myBot.samples[opponentBot.samplesLength++] = sample;
                 } else if (sample.material.carriedBy == 1) {
-                    opponentBot.samples.put(sample.material.sampleId, sample);
+                    opponentBot.samples[opponentBot.samplesLength++] = sample;
                 } else {
                     samples.put(sample.material.sampleId, sample);
                 }
@@ -180,14 +180,21 @@ class Node {
         final Robot currentBot = gameState.robots[gameState.player];
         final Position currentLocation = gameState.robots[gameState.player].target;
         final Map<GameState, String> gameStates = new HashMap<>();
+        boolean diagnosisLeft = false;
+        for (int i = 0; i < currentBot.samplesLength; i++) {
+            if (!currentBot.samples[i].isVisible()) {
+                diagnosisLeft = true;
+                break;
+            }
+        }
         switch (currentLocation) {
             case SAMPLES: {
-                if (currentBot.samples.values().stream().anyMatch(sample -> !sample.isVisible())
+                if (diagnosisLeft
                         || !gameState.samples.isEmpty()
-                        || currentBot.samples.values().size() == 3) {
+                        || currentBot.samplesLength == 3) {
                     gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
-                if (currentBot.samples.values().size() < 3) {
+                if (currentBot.samplesLength < 3) {
                     for (int rank = 0; rank < 3; rank++) {
                         gameStates.put(gameState.play(rank), Action.CONNECT.name() + " " + (rank + 1));
                     }
@@ -201,15 +208,16 @@ class Node {
                 if (currentBot.totalMolecules < 10) {
                     gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
                 }
-                if (currentBot.samples.size() < 3) {
+                if (currentBot.samplesLength < 3) {
                     gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
-                for (final Integer id : currentBot.samples.keySet()) {
-                    if (!currentBot.samples.get(id).isVisible() || !currentBot.isPossible(currentBot.samples.get(id), gameState.availableMolecules)) {
-                        gameStates.put(gameState.play(id), Action.CONNECT.name() + " " + id);
+                for (int i = 0; i < currentBot.samplesLength; i++) {
+                    if (!currentBot.samples[i].isVisible() || !currentBot.isPossible(currentBot.samples[i], gameState.availableMolecules)) {
+                        gameStates.put(gameState.play(currentBot.samples[i].material.sampleId), Action.CONNECT.name()
+                                + " " + currentBot.samples[i].material.sampleId);
                     }
                 }
-                if (currentBot.samples.size() < 3) {
+                if (currentBot.samplesLength < 3) {
                     for (final Integer id : gameState.samples.keySet()) {
                         if (currentBot.isPossible(gameState.samples.get(id), gameState.availableMolecules)) {
                             gameStates.put(gameState.play(id), Action.CONNECT.name() + " " + id);
@@ -222,12 +230,10 @@ class Node {
                 if (currentBot.canMakeMedicine()) {
                     gameStates.put(gameState.play(Position.LABORATORY), Action.GOTO.name() + " " + Position.LABORATORY.name());
                 }
-                if (currentBot.samples.values().stream().anyMatch(sample -> !sample.isVisible())
-                        || !gameState.samples.isEmpty()
-                        || currentBot.samples.values().size() == 3) {
+                if (diagnosisLeft || !gameState.samples.isEmpty() || currentBot.samplesLength == 3) {
                     gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
-                if (currentBot.samples.size() < 3) {
+                if (currentBot.samplesLength < 3) {
                     gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
                 if (currentBot.totalMolecules < 10) {
@@ -240,23 +246,23 @@ class Node {
                 break;
             }
             case LABORATORY: {
-                if (currentBot.samples.values().stream().anyMatch(sample -> !sample.isVisible())
-                        || !gameState.samples.isEmpty()
-                        || currentBot.samples.values().size() == 3) {
+                if (diagnosisLeft || !gameState.samples.isEmpty() || currentBot.samplesLength == 3) {
                     gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.totalMolecules < 10) {
                     gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
                 }
-                if (currentBot.samples.size() < 3) {
+                if (currentBot.samplesLength < 3) {
                     gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
-                currentBot.samples.values()
-                        .stream()
-                        .filter(Sample::isVisible)
-                        .filter(currentBot::isAdequate)
-                        .map(sample -> sample.material.sampleId)
-                        .forEach(id -> gameStates.put(gameState.play(id), Action.CONNECT.name() + " " + id));
+                for (int i = 0; i < currentBot.samplesLength; i++) {
+                    Sample sample = currentBot.samples[i];
+                    if (sample.isVisible()) {
+                        if (currentBot.isAdequate(sample)) {
+                            gameStates.put(gameState.play(sample.material.sampleId), Action.CONNECT.name() + " " + sample.material.sampleId);
+                        }
+                    }
+                }
                 break;
             }
             default: {
@@ -460,23 +466,23 @@ class GameState {
             case SAMPLES: {
                 final LinkedList<SampleMaterial> sampleMaterials = remainingSampleMaterial.get(id);
                 final Sample sample = new Sample(sampleMaterials.get(random.nextInt(sampleMaterials.size())), id, player);
-                currentBot.samples.put(sample.material.sampleId, sample);
+                currentBot.samples[currentBot.samplesLength++] = sample;
                 break;
             }
             case DIAGNOSIS: {
-                final Sample sample = currentBot.samples.get(id);
-                if (sample == null) {
+                final int sampleIndex = currentBot.getSample(id);
+                if (sampleIndex < 0) {
                     if (samples.containsKey(id)) {
-                        currentBot.samples.put(id, samples.remove(id));
+                        currentBot.samples[currentBot.samplesLength++] = samples.remove(id);
                     } else {
-                        //todo: change this to do nothing
                         System.err.println("No such sample" + id);
                     }
-                } else if (sample.isVisible()) {
-                    samples.put(id, sample);
-                    currentBot.samples.remove(id);
+                } else if (currentBot.samples[sampleIndex].isVisible()) {
+                    samples.put(id, currentBot.samples[sampleIndex]);
+                    currentBot.samplesLength--;
+                    currentBot.samples[sampleIndex] = currentBot.samples[currentBot.samplesLength];
                 } else {
-                    sample.makeVisible(remainingSampleMaterial.get(sample.material.rank));
+                    currentBot.samples[sampleIndex].makeVisible(remainingSampleMaterial.get(currentBot.samples[sampleIndex].material.rank));
                 }
                 break;
             }
@@ -491,8 +497,11 @@ class GameState {
                 break;
             }
             case LABORATORY: {
-                final Sample sample = currentBot.samples.remove(id);
-                if (sample == null) {
+                final int sampleIndex = currentBot.getSample(id);
+                final Sample sample = currentBot.samples[sampleIndex];
+                currentBot.samplesLength--;
+                currentBot.samples[sampleIndex] = currentBot.samples[currentBot.samplesLength];
+                if (sampleIndex < 0) {
                     throw new RuntimeException("Make what?");
                 } else {
                     for (int i = 0; i < sample.material.cost[i]; i++) {
@@ -541,9 +550,7 @@ class GameState {
     @Override
     public GameState clone() {
         final Robot[] cloneBots = new Robot[robots.length];
-        for (int i = 0; i < robots.length; i++) {
-            cloneBots[i] = robots[i].clone();
-        }
+        cloneBots[0] = robots[0].clone();
         final Map<Integer, Sample> cloneSamples = new HashMap<>();
         for (Integer id : samples.keySet()) {
             cloneSamples.put(id, samples.get(id).clone());
@@ -706,8 +713,9 @@ class Robot {
     int eta, score;
     final int[] storage, expertise;
     int totalMolecules;
-    final Map<Integer, Sample> samples = new HashMap<>(3);
+    final Sample[] samples = new Sample[3];
     int totalExpertise;
+    int samplesLength;
 
     public Robot(final Position target,
                  final int eta,
@@ -735,7 +743,14 @@ class Robot {
     }
 
     public boolean canMakeMedicine() {
-        return samples.values().stream().filter(Sample::isVisible).anyMatch(this::isAdequate);
+        for (int i = 0; i < samplesLength; i++) {
+            if (samples[i].isVisible()) {
+                if (isAdequate(samples[i])) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean isAdequate(final Sample sample) {
@@ -759,7 +774,19 @@ class Robot {
     @Override
     protected Robot clone() {
         final Robot robot = new Robot(target, eta, score, Arrays.copyOf(storage, storage.length), Arrays.copyOf(expertise, expertise.length));
-        this.samples.forEach((id, sample) -> robot.samples.put(id, sample.clone()));
+        for (int i = 0; i < samplesLength; i++) {
+            robot.samples[i] = samples[i].clone();
+        }
+        robot.samplesLength = samplesLength;
         return robot;
+    }
+
+    public int getSample(final int id) {
+        for (int i = 0; i < samplesLength; i++) {
+            if (samples[i].material.sampleId == id) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
