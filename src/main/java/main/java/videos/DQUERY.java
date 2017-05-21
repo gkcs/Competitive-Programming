@@ -21,11 +21,12 @@ public class DQUERY {
             queries[i] = new Query(i, in.readInt() - 1, in.readInt() - 1);
         }
         BLOCK_SIZE = (int) Math.sqrt(a.length);
-        final int[] answers = solve(a, queries);
-        System.out.println(Arrays.stream(answers).mapToObj(String::valueOf).collect(Collectors.joining("\n")));
+        System.out.println(Arrays.stream(new DQUERY().solve(a, queries))
+                .mapToObj(String::valueOf)
+                .collect(Collectors.joining("\n")));
     }
 
-    public static int[] solve(final int[] a, final Query[] queries) {
+    public int[] solve(final int[] a, final Query[] queries) {
         Arrays.parallelSort(queries);
         int start = queries[0].left, end = start;
         final int frequencies[] = new int[1000001];
