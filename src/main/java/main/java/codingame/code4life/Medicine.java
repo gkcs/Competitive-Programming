@@ -1,6 +1,8 @@
 package main.java.codingame.code4life;
 
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.LongAdder;
 
 public class Medicine {
     public static void main(String args[]) {
@@ -35,7 +37,7 @@ public class Medicine {
             if (myBot.eta > 0) {
                 System.out.println(Action.GOTO.name() + " " + myBot.target);
             } else if (!myBot.target.equals(Position.START_POS)) {
-                System.out.println(new MCTS().findBestMove(new GameState(0, new Robot[]{myBot, opponentBot}, available, projects, Arrays.copyOf(samples, filled), rounds, filled)));
+                System.out.println(new MCTS(new GameState(0, new Robot[]{myBot, opponentBot}, available, projects, Arrays.copyOf(samples, filled), rounds, filled)).findBestMove().getMove());
             } else {
                 System.out.println(Action.GOTO.name() + " " + Position.SAMPLES.name());
             }
@@ -63,39 +65,54 @@ public class Medicine {
 }
 
 class MCTS {
-    public static long MAX_COMPUTATIONS = 2;
+    Node root;
+    private static final int processors = Runtime.getRuntime().availableProcessors();
+    private static final int MAX_TASKS = 4;
 
-    public String findBestMove(final GameState gameState) {
-        final Node root = new Node(gameState.rounds, null, null, gameState);
-        for (int i = 0; i < MAX_COMPUTATIONS; i++) {
-            Node current = root;
-            Node next = current.getNextChild();
-            while (next != null) {
-                current = next;
-                next = current.getNextChild();
-            }
-            current.expand();
-            for (final Node child : current.children) {
-                for (int simulate = 0; simulate < 2; simulate++) {
-                    current.propagate(child.simulation());
-                }
-                System.err.println("ITERATION: PROPAGATED CHILD " + child + " TO PARENT: " + current);
-            }
-        }
-        return root.getRobustChild().getMove();
+    public MCTS(final GameState gameState) {
+        root = new Node(gameState.rounds, null, null, gameState);
     }
 
-    public static double evaluate(final GameState gameState) {
+    public Node findBestMove() {
+        final CompletableFuture[] futures = new CompletableFuture[processors * MAX_TASKS];
+        for (int tasks = 0; tasks < MAX_TASKS; tasks++) {
+            for (int i = 0; i < processors; i++) {
+                futures[tasks * processors + i] = CompletableFuture.supplyAsync(() -> {
+                    Node current = root;
+                    Node next = current.getNextChild();
+                    while (next != null) {
+                        current = next;
+                        next = current.getNextChild();
+                    }
+                    current.expand();
+                    for (final Node child : current.children) {
+                        for (int simulate = 0; simulate < 3; simulate++) {
+                            current.propagate(child.simulation());
+                        }
+                    }
+                    return null;
+                });
+            }
+        }
+        final CompletableFuture<Void> result = CompletableFuture.allOf(futures);
+        try {
+            result.get(300, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException ignored) {
+        }
+        return root.getRobustChild();
+    }
+
+    public static long evaluate(final GameState gameState) {
         final Robot first = gameState.robots[gameState.player];
-        return first.score + (1 - gameState.rounds / 400.0) * (first.totalExpertise + 0.1 * first.totalMolecules);
+        return (long) (100 * first.score + (1 - gameState.rounds / 400.0) * (10 * first.totalExpertise + first.totalMolecules));
     }
 
 }
 
 class Node {
     final int roundsTillNow;
-    double totalScore;
-    int plays;
+    final LongAdder totalScore = new LongAdder();
+    final LongAdder plays = new LongAdder();
     final String moveToGetHere;
     final Node parent;
     final GameState gameState;
@@ -110,7 +127,7 @@ class Node {
     }
 
     public Node getRobustChild() {
-        return children.stream().max(Comparator.comparingInt(node -> node.plays)).orElseThrow(() -> new RuntimeException("No children here"));
+        return children.stream().max(Comparator.comparingLong(node -> node.plays.longValue())).orElseThrow(() -> new RuntimeException("No children here"));
     }
 
     public Node getNextChild() {
@@ -119,10 +136,10 @@ class Node {
         } else {
             double max = -1;
             Node maxNode = null;
-            for (Node node : children) {
-                double v = node.totalScore / node.plays - Math.sqrt(2 * Math.log(plays) / node.plays);
-                if (v > max) {
-                    max = v;
+            for (final Node node : children) {
+                final double score = node.totalScore.longValue() * node.gameState.bias / node.plays.longValue() - Math.sqrt(2 * Math.log(plays.longValue()) / node.plays.longValue());
+                if (score > max) {
+                    max = score;
                     maxNode = node;
                 }
             }
@@ -130,39 +147,36 @@ class Node {
         }
     }
 
-    public void propagate(final double score) {
-        totalScore += score;
-        plays++;
+    public void propagate(final long score) {
+        totalScore.add(score);
+        plays.increment();
         if (parent != null) {
             parent.propagate(score);
         }
     }
 
-    public void expand() {
-        final Set<Map.Entry<GameState, String>> entries = getPossibleMoves(gameState).entrySet();
-        children = new ArrayList<>(entries.size());
-        for (Map.Entry<GameState, String> entry : entries) {
-            children.add(new Node(roundsTillNow + 2, this, entry.getValue(), entry.getKey()));
+    public synchronized void expand() {
+        if (children == null) {
+            final Set<Map.Entry<GameState, String>> entries = getPossibleMoves(gameState).entrySet();
+            children = new ArrayList<>(entries.size());
+            for (final Map.Entry<GameState, String> entry : entries) {
+                children.add(new Node(roundsTillNow + 2, this, entry.getValue(), entry.getKey()));
+            }
         }
     }
 
-    public double simulation() {
+    public long simulation() {
         if (roundsTillNow >= 400) {
             return gameState.robots[0].score;
         } else {
-            double score = 0;
             Node now = this;
             int rounds = 0;
-            while (rounds < 8) {
-                if (children == null) {
-                    expand();
-                }
+            while (rounds < 10) {
+                expand();
                 now = children.get(random.nextInt(children.size()));
                 rounds += 2;
             }
-            totalScore += MCTS.evaluate(now.gameState);
-            plays++;
-            return score;
+            return MCTS.evaluate(now.gameState);
         }
     }
 
@@ -190,24 +204,42 @@ class Node {
                 if (diagnosisLeft
                         || gameState.samplesLength != 0
                         || currentBot.samplesLength == 3) {
-                    gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                    gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.85), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.samplesLength < 3) {
-                    for (int rank = 0; rank < 3; rank++) {
-                        gameStates.put(gameState.play(rank), Action.CONNECT.name() + " " + (rank + 1));
+                    if (60 <= currentBot.score) {
+                        gameStates.put(gameState.play(0).setBias(0.25), Action.CONNECT.name() + " " + 1);
+                        gameStates.put(gameState.play(1).setBias(0.8), Action.CONNECT.name() + " " + 2);
+                        gameStates.put(gameState.play(2), Action.CONNECT.name() + " " + 3);
+                    } else if (30 <= currentBot.score) {
+                        gameStates.put(gameState.play(0).setBias(0.4), Action.CONNECT.name() + " " + 1);
+                        gameStates.put(gameState.play(1), Action.CONNECT.name() + " " + 2);
+                        gameStates.put(gameState.play(2), Action.CONNECT.name() + " " + 3);
+                    } else if (3 <= currentBot.score) {
+                        gameStates.put(gameState.play(0).setBias(0.6), Action.CONNECT.name() + " " + 1);
+                        gameStates.put(gameState.play(1), Action.CONNECT.name() + " " + 2);
+                    } else {
+                        gameStates.put(gameState.play(0), Action.CONNECT.name() + " " + 1);
                     }
                 }
                 break;
             }
             case DIAGNOSIS: {
                 if (currentBot.canMakeMedicine()) {
-                    gameStates.put(gameState.play(Position.LABORATORY), Action.GOTO.name() + " " + Position.LABORATORY.name());
+                    gameStates.put(gameState.play(Position.LABORATORY).setBias(0.95), Action.GOTO.name() + " " + Position.LABORATORY.name());
                 }
-                if (currentBot.totalMolecules < 10) {
-                    gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                if (currentBot.totalMolecules < 5) {
+                    gameStates.put(gameState.play(Position.MOLECULES).setBias(0.75), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                } else if (currentBot.totalMolecules < 10) {
+                    for (int i = 0; i < currentBot.samplesLength; i++) {
+                        final Sample sample = currentBot.samples[i];
+                        if (currentBot.isPossible(sample, gameState.availableMolecules) && !currentBot.isAdequate(sample)) {
+                            gameStates.put(gameState.play(Position.MOLECULES).setBias(0.95), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                        }
+                    }
                 }
                 if (currentBot.samplesLength < 3) {
-                    gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
+                    gameStates.put(gameState.play(Position.SAMPLES).setBias(0.2), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
                 for (int i = 0; i < currentBot.samplesLength; i++) {
                     if (!currentBot.samples[i].visible || !currentBot.isPossible(currentBot.samples[i], gameState.availableMolecules)) {
@@ -218,7 +250,29 @@ class Node {
                 if (currentBot.samplesLength < 3) {
                     for (int i = 0; i < gameState.samplesLength; i++) {
                         if (currentBot.isPossible(gameState.samples[i], gameState.availableMolecules)) {
-                            gameStates.put(gameState.play(gameState.samples[i].material.sampleId), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                            final int rank = gameState.samples[i].material.rank;
+                            if (rank == 2) {
+                                if (30 <= currentBot.score) {
+                                    gameStates.put(gameState.play(gameState.samples[i].material.sampleId), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                }
+                            } else if (rank == 1) {
+                                if (60 <= currentBot.score) {
+                                    gameStates.put(gameState.play(gameState.samples[i].material.sampleId).setBias(0.8), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                } else if (3 <= currentBot.score) {
+                                    gameStates.put(gameState.play(gameState.samples[i].material.sampleId), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                }
+                            } else {
+                                final GameState play = gameState.play(gameState.samples[i].material.sampleId);
+                                if (60 <= currentBot.score) {
+                                    gameStates.put(play.setBias(0.25), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                } else if (30 <= currentBot.score) {
+                                    gameStates.put(play.setBias(0.4), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                } else if (3 <= currentBot.score) {
+                                    gameStates.put(play.setBias(0.6), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                } else {
+                                    gameStates.put(play, Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
+                                }
+                            }
                         }
                     }
                 }
@@ -231,36 +285,50 @@ class Node {
             }
             case MOLECULES: {
                 if (currentBot.canMakeMedicine()) {
-                    gameStates.put(gameState.play(Position.LABORATORY), Action.GOTO.name() + " " + Position.LABORATORY.name());
+                    gameStates.put(gameState.play(Position.LABORATORY).setBias(0.9), Action.GOTO.name() + " " + Position.LABORATORY.name());
                 }
                 if (diagnosisLeft || gameState.samplesLength != 0 || currentBot.samplesLength == 3) {
-                    gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                    gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.85), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.samplesLength < 3) {
-                    gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
+                    gameStates.put(gameState.play(Position.SAMPLES).setBias(0.70), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
-                if (currentBot.totalMolecules < 10) {
+                if (currentBot.totalMolecules < 5) {
                     for (int i = 0; i < gameState.availableMolecules.length; i++) {
                         if (gameState.availableMolecules[i] > 0) {
                             gameStates.put(gameState.play(i), Action.CONNECT.name() + " " + (char) ('A' + i));
                         }
                     }
+                } else if (currentBot.totalMolecules < 10) {
+                    for (int i = 0; i < currentBot.samplesLength; i++) {
+                        final Sample sample = currentBot.samples[i];
+                        if (currentBot.isPossible(sample, gameState.availableMolecules) && !currentBot.isAdequate(sample)) {
+                            for (int j = 0; j < gameState.availableMolecules.length; j++) {
+                                if (gameState.availableMolecules[j] > 0 && currentBot.storage[j] + currentBot.expertise[j] < sample.material.cost[j]) {
+                                    gameStates.put(gameState.play(j), Action.CONNECT.name() + " " + (char) ('A' + j));
+                                }
+                            }
+                        }
+                    }
+
                 }
                 break;
             }
             case LABORATORY: {
-                if (diagnosisLeft || gameState.samplesLength > 0) {
-                    gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
-                }
-                gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
-                gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 for (int i = 0; i < currentBot.samplesLength; i++) {
                     final Sample sample = currentBot.samples[i];
                     if (sample.visible) {
                         if (currentBot.isAdequate(sample)) {
-                            gameStates.put(gameState.play(sample.material.sampleId), Action.CONNECT.name() + " " + sample.material.sampleId);
+                            gameStates.put(gameState.play(sample.material.sampleId).setBias(100), Action.CONNECT.name() + " " + sample.material.sampleId);
                         }
                     }
+                }
+                if (gameStates.size() == 0) {
+                    if (diagnosisLeft || gameState.samplesLength > 0) {
+                        gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                    }
+                    gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                    gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
                 break;
             }
@@ -327,6 +395,7 @@ class GameState {
     final int availableMolecules[];
     final List<Project> projects;
     final Sample[] samples;
+    public double bias;
     int totalMoleculesLeft;
     int rounds;
     int samplesLength;
@@ -355,6 +424,12 @@ class GameState {
         this.totalMoleculesLeft = Arrays.stream(availableMolecules).sum();
         this.rounds = rounds;
         this.samplesLength = samplesLength;
+        this.bias = 1.0;
+    }
+
+    public GameState setBias(final double bias) {
+        this.bias = bias;
+        return this;
     }
 
     public GameState play(final Position position) {
@@ -474,8 +549,7 @@ class GameState {
         for (int i = 0; i < samplesLength; i++) {
             cloneSamples[i] = samples[i].clone();
         }
-        //todo: projects are not the same
-        return new GameState(player, cloneBots, Arrays.copyOf(availableMolecules, availableMolecules.length), projects, cloneSamples, rounds, samplesLength);
+        return new GameState(player, cloneBots, Arrays.copyOf(availableMolecules, availableMolecules.length), new ArrayList<>(projects), cloneSamples, rounds, samplesLength);
     }
 
     @Override
@@ -487,6 +561,7 @@ class GameState {
                 ", projects=" + projects +
                 ", samples=" + Arrays.toString(samples) +
                 ", totalMoleculesLeft=" + totalMoleculesLeft +
+                ", bias=" + bias +
                 '}';
     }
 
