@@ -152,7 +152,7 @@ class Node {
             while (rounds < 8 && roundsTillNow + rounds < 400) {
                 final Map<GameState, String> possibleMoves = getPossibleMoves(currentState);
                 int count = 0;
-                int index = random.nextInt(possibleMoves.size());
+                int index = possibleMoves.size() == 0 ? 0 : random.nextInt(possibleMoves.size());
                 for (final GameState possible : possibleMoves.keySet()) {
                     if (count == index) {
                         currentState = possible;
@@ -205,7 +205,7 @@ class Node {
                     gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
                 for (final Integer id : currentBot.samples.keySet()) {
-                    if (!currentBot.samples.get(id).isVisible() || !currentBot.isAdequate(currentBot.samples.get(id))) {
+                    if (!currentBot.samples.get(id).isVisible() || !currentBot.isPossible(currentBot.samples.get(id), gameState.availableMolecules)) {
                         gameStates.put(gameState.play(id), Action.CONNECT.name() + " " + id);
                     }
                 }
@@ -321,9 +321,10 @@ class GameState {
     final Map<Integer, Sample> samples;
     int totalMoleculesLeft;
     int rounds;
-    private final List<LinkedList<SampleMaterial>> remainingSampleMaterial = initSamplePool();
+    private static final List<LinkedList<SampleMaterial>> remainingSampleMaterial = initSamplePool();
+    private static final Random random = new Random();
 
-    private List<LinkedList<SampleMaterial>> initSamplePool() {
+    private static List<LinkedList<SampleMaterial>> initSamplePool() {
         final List<LinkedList<SampleMaterial>> l = Arrays.asList(new LinkedList<>(), new LinkedList<>(), new LinkedList<>());
         l.get(0).add(new SampleMaterial(new int[]{0, 3, 0, 0, 0}, 1, MoleculeType.A));
         l.get(0).add(new SampleMaterial(new int[]{0, 0, 0, 2, 1}, 1, MoleculeType.A));
@@ -457,7 +458,8 @@ class GameState {
         final Robot currentBot = robots[player];
         switch (robots[player].target) {
             case SAMPLES: {
-                final Sample sample = new Sample(remainingSampleMaterial.get(id).pop(), id, player);
+                final LinkedList<SampleMaterial> sampleMaterials = remainingSampleMaterial.get(id);
+                final Sample sample = new Sample(sampleMaterials.get(random.nextInt(sampleMaterials.size())), id, player);
                 currentBot.samples.put(sample.material.sampleId, sample);
                 break;
             }
@@ -474,7 +476,7 @@ class GameState {
                     samples.put(id, sample);
                     currentBot.samples.remove(id);
                 } else {
-                    sample.makeVisible(remainingSampleMaterial);
+                    sample.makeVisible(remainingSampleMaterial.get(sample.material.rank));
                 }
                 break;
             }
@@ -594,9 +596,9 @@ class Sample {
         this.material = material;
     }
 
-    public void makeVisible(final List<LinkedList<SampleMaterial>> remainingSampleMaterial) {
+    public void makeVisible(final LinkedList<SampleMaterial> remainingSampleMaterial) {
         if (material.cost[1] < 0) {
-            SampleMaterial pop = remainingSampleMaterial.get(material.rank).pop();
+            SampleMaterial pop = remainingSampleMaterial.get(random.nextInt(remainingSampleMaterial.size()));
             material.health = pop.health;
             System.arraycopy(pop.cost, 0, material.cost, 0, pop.cost.length);
             material.expertiseGain = pop.expertise;
