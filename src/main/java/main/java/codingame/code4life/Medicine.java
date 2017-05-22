@@ -1,7 +1,10 @@
 package main.java.codingame.code4life;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.LongAdder;
 
 public class Medicine {
@@ -86,7 +89,7 @@ class MCTS {
                     }
                     current.expand();
                     for (final Node child : current.children) {
-                        for (int simulate = 0; simulate < 3; simulate++) {
+                        for (int simulate = 0; simulate < 1; simulate++) {
                             current.propagate(child.simulation());
                         }
                     }
@@ -99,7 +102,9 @@ class MCTS {
             result.get(300, TimeUnit.MILLISECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException ignored) {
         }
-        return root.getRobustChild();
+        final Node robustChild = root.getRobustChild();
+        System.err.println(robustChild.gameState.bias);
+        return robustChild;
     }
 
     public static long evaluate(final GameState gameState) {
@@ -127,7 +132,7 @@ class Node {
     }
 
     public Node getRobustChild() {
-        return children.stream().max(Comparator.comparingLong(node -> node.plays.longValue())).orElseThrow(() -> new RuntimeException("No children here"));
+        return children.stream().max(Comparator.comparingDouble(node -> node.plays.longValue())).orElseThrow(() -> new RuntimeException("No children here"));
     }
 
     public Node getNextChild() {
@@ -137,7 +142,7 @@ class Node {
             double max = -1;
             Node maxNode = null;
             for (final Node node : children) {
-                final double score = node.totalScore.longValue() * node.gameState.bias / node.plays.longValue() - Math.sqrt(2 * Math.log(plays.longValue()) / node.plays.longValue());
+                final double score = (((double) node.totalScore.longValue()) / totalScore.longValue()) - Math.sqrt(2 * Math.log(plays.longValue()) / node.plays.longValue());
                 if (score > max) {
                     max = score;
                     maxNode = node;
@@ -204,7 +209,7 @@ class Node {
                 if (diagnosisLeft
                         || gameState.samplesLength != 0
                         || currentBot.samplesLength == 3) {
-                    gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.85), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                    gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.3), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.samplesLength < 3) {
                     if (60 <= currentBot.score) {
@@ -229,7 +234,7 @@ class Node {
                     gameStates.put(gameState.play(Position.LABORATORY).setBias(0.95), Action.GOTO.name() + " " + Position.LABORATORY.name());
                 }
                 if (currentBot.totalMolecules < 5) {
-                    gameStates.put(gameState.play(Position.MOLECULES).setBias(0.75), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                    gameStates.put(gameState.play(Position.MOLECULES).setBias(0.4), Action.GOTO.name() + " " + Position.MOLECULES.name());
                 } else if (currentBot.totalMolecules < 10) {
                     for (int i = 0; i < currentBot.samplesLength; i++) {
                         final Sample sample = currentBot.samples[i];
@@ -288,10 +293,10 @@ class Node {
                     gameStates.put(gameState.play(Position.LABORATORY).setBias(0.9), Action.GOTO.name() + " " + Position.LABORATORY.name());
                 }
                 if (diagnosisLeft || gameState.samplesLength != 0 || currentBot.samplesLength == 3) {
-                    gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.85), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                    gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.4), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.samplesLength < 3) {
-                    gameStates.put(gameState.play(Position.SAMPLES).setBias(0.70), Action.GOTO.name() + " " + Position.SAMPLES.name());
+                    gameStates.put(gameState.play(Position.SAMPLES).setBias(0.3), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
                 if (currentBot.totalMolecules < 5) {
                     for (int i = 0; i < gameState.availableMolecules.length; i++) {
@@ -323,13 +328,13 @@ class Node {
                         }
                     }
                 }
-                if (gameStates.size() == 0) {
-                    if (diagnosisLeft || gameState.samplesLength > 0) {
-                        gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
-                    }
-                    gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
-                    gameStates.put(gameState.play(Position.SAMPLES), Action.GOTO.name() + " " + Position.SAMPLES.name());
+//                if (gameStates.size() == 0) {
+                if (diagnosisLeft || gameState.samplesLength > 0) {
+                    gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
+                gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                gameStates.put(gameState.play(Position.SAMPLES).setBias(1 - currentBot.samplesLength * 0.33), Action.GOTO.name() + " " + Position.SAMPLES.name());
+//                }
                 break;
             }
             default: {
@@ -815,6 +820,22 @@ class Robot {
         this.totalExpertise = Arrays.stream(expertise).sum();
     }
 
+    public Robot(final Position target,
+                 final int eta,
+                 final int score,
+                 final int[] storage,
+                 final int[] expertise,
+                 final int totalMolecules,
+                 final int totalExpertise) {
+        this.target = target;
+        this.eta = eta;
+        this.score = score;
+        this.storage = storage;
+        this.expertise = expertise;
+        this.totalMolecules = totalMolecules;
+        this.totalExpertise = totalExpertise;
+    }
+
     @Override
     public String toString() {
         return "Robot{" +
@@ -857,7 +878,7 @@ class Robot {
 
     @Override
     protected Robot clone() {
-        final Robot robot = new Robot(target, eta, score, Arrays.copyOf(storage, storage.length), Arrays.copyOf(expertise, expertise.length));
+        final Robot robot = new Robot(target, eta, score, Arrays.copyOf(storage, storage.length), Arrays.copyOf(expertise, expertise.length), totalMolecules, totalExpertise);
         for (int i = 0; i < samplesLength; i++) {
             robot.samples[i] = samples[i].clone();
         }
