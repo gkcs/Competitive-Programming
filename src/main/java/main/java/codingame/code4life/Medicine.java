@@ -70,7 +70,7 @@ public class Medicine {
 class MCTS {
     Node root;
     private static final int processors = Runtime.getRuntime().availableProcessors();
-    private static final int MAX_TASKS = 4;
+    private static final int MAX_TASKS = 32;
     private static final LongAdder tasksCompleted = new LongAdder();
 
     public MCTS(final GameState gameState) {
@@ -181,7 +181,7 @@ class Node {
         } else {
             Node now = this;
             int rounds = 0;
-            while (rounds < 10) {
+            while (rounds < 26) {
                 expand();
                 now = children.get(random.nextInt(children.size()));
                 rounds += 2;
@@ -217,16 +217,12 @@ class Node {
                     gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.3), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.samplesLength < 3) {
-                    if (60 <= currentBot.score) {
-                        gameStates.put(gameState.play(0).setBias(0.25), Action.CONNECT.name() + " " + 1);
-                        gameStates.put(gameState.play(1).setBias(0.8), Action.CONNECT.name() + " " + 2);
+                    if (9 <= currentBot.totalExpertise) {
                         gameStates.put(gameState.play(2), Action.CONNECT.name() + " " + 3);
-                    } else if (30 <= currentBot.score) {
-                        gameStates.put(gameState.play(0).setBias(0.4), Action.CONNECT.name() + " " + 1);
+                    } else if (6 <= currentBot.totalExpertise) {
                         gameStates.put(gameState.play(1), Action.CONNECT.name() + " " + 2);
-                        gameStates.put(gameState.play(2), Action.CONNECT.name() + " " + 3);
-                    } else if (3 <= currentBot.score) {
-                        gameStates.put(gameState.play(0).setBias(0.6), Action.CONNECT.name() + " " + 1);
+                    } else if (2 <= currentBot.totalExpertise) {
+                        gameStates.put(gameState.play(0).setBias(0.1), Action.CONNECT.name() + " " + 1);
                         gameStates.put(gameState.play(1), Action.CONNECT.name() + " " + 2);
                     } else {
                         gameStates.put(gameState.play(0), Action.CONNECT.name() + " " + 1);
@@ -262,26 +258,16 @@ class Node {
                         if (currentBot.isPossible(gameState.samples[i], gameState.availableMolecules)) {
                             final int rank = gameState.samples[i].material.rank;
                             if (rank == 2) {
-                                if (30 <= currentBot.score) {
+                                if (5 <= currentBot.totalExpertise) {
                                     gameStates.put(gameState.play(gameState.samples[i].material.sampleId), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
                                 }
                             } else if (rank == 1) {
-                                if (60 <= currentBot.score) {
-                                    gameStates.put(gameState.play(gameState.samples[i].material.sampleId).setBias(0.8), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
-                                } else if (3 <= currentBot.score) {
+                                if (2 <= currentBot.totalExpertise) {
                                     gameStates.put(gameState.play(gameState.samples[i].material.sampleId), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
                                 }
                             } else {
                                 final GameState play = gameState.play(gameState.samples[i].material.sampleId);
-                                if (60 <= currentBot.score) {
-                                    gameStates.put(play.setBias(0.25), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
-                                } else if (30 <= currentBot.score) {
-                                    gameStates.put(play.setBias(0.4), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
-                                } else if (3 <= currentBot.score) {
-                                    gameStates.put(play.setBias(0.6), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
-                                } else {
-                                    gameStates.put(play, Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
-                                }
+                                gameStates.put(play.setBias(0.25), Action.CONNECT.name() + " " + gameState.samples[i].material.sampleId);
                             }
                         }
                     }
@@ -301,26 +287,28 @@ class Node {
                     gameStates.put(gameState.play(Position.DIAGNOSIS).setBias(0.4), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
                 }
                 if (currentBot.samplesLength < 3) {
-                    gameStates.put(gameState.play(Position.SAMPLES).setBias(0.3), Action.GOTO.name() + " " + Position.SAMPLES.name());
+                    gameStates.put(gameState.play(Position.SAMPLES).setBias(0.2), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
-                if (currentBot.totalMolecules < 5) {
-                    for (int i = 0; i < gameState.availableMolecules.length; i++) {
-                        if (gameState.availableMolecules[i] > 0) {
-                            gameStates.put(gameState.play(i), Action.CONNECT.name() + " " + (char) ('A' + i));
-                        }
-                    }
-                } else if (currentBot.totalMolecules < 10) {
+                if (currentBot.totalMolecules < 10) {
+                    int x = 0;
                     for (int i = 0; i < currentBot.samplesLength; i++) {
                         final Sample sample = currentBot.samples[i];
                         if (currentBot.isPossible(sample, gameState.availableMolecules) && !currentBot.isAdequate(sample)) {
                             for (int j = 0; j < gameState.availableMolecules.length; j++) {
                                 if (gameState.availableMolecules[j] > 0 && currentBot.storage[j] + currentBot.expertise[j] < sample.material.cost[j]) {
                                     gameStates.put(gameState.play(j), Action.CONNECT.name() + " " + (char) ('A' + j));
+                                    x++;
                                 }
                             }
                         }
                     }
-
+                    if (x == 0 && currentBot.totalMolecules < 5) {
+                        for (int j = 0; j < gameState.availableMolecules.length; j++) {
+                            if (gameState.availableMolecules[j] > 0) {
+                                gameStates.put(gameState.play(j), Action.CONNECT.name() + " " + (char) ('A' + j));
+                            }
+                        }
+                    }
                 }
                 break;
             }
@@ -333,13 +321,13 @@ class Node {
                         }
                     }
                 }
-//                if (gameStates.size() == 0) {
-                if (diagnosisLeft || gameState.samplesLength > 0) {
-                    gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                if (gameStates.size() == 0) {
+                    if (diagnosisLeft || gameState.samplesLength > 0) {
+                        gameStates.put(gameState.play(Position.DIAGNOSIS), Action.GOTO.name() + " " + Position.DIAGNOSIS.name());
+                    }
+                    gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
+                    gameStates.put(gameState.play(Position.SAMPLES).setBias(1 - currentBot.samplesLength * 0.33), Action.GOTO.name() + " " + Position.SAMPLES.name());
                 }
-                gameStates.put(gameState.play(Position.MOLECULES), Action.GOTO.name() + " " + Position.MOLECULES.name());
-                gameStates.put(gameState.play(Position.SAMPLES).setBias(1 - currentBot.samplesLength * 0.33), Action.GOTO.name() + " " + Position.SAMPLES.name());
-//                }
                 break;
             }
             default: {
