@@ -71,6 +71,7 @@ class MCTS {
     Node root;
     private static final int processors = Runtime.getRuntime().availableProcessors();
     private static final int MAX_TASKS = 4;
+    private static final LongAdder tasksCompleted = new LongAdder();
 
     public MCTS(final GameState gameState) {
         root = new Node(gameState.rounds, null, null, gameState);
@@ -93,6 +94,7 @@ class MCTS {
                             current.propagate(child.simulation());
                         }
                     }
+                    tasksCompleted.increment();
                     return null;
                 });
             }
@@ -104,6 +106,7 @@ class MCTS {
         }
         final Node robustChild = root.getRobustChild();
         System.err.println(robustChild.gameState.bias);
+        System.err.println(tasksCompleted.longValue());
         return robustChild;
     }
 
@@ -142,7 +145,9 @@ class Node {
             double max = -1;
             Node maxNode = null;
             for (final Node node : children) {
-                final double score = (((double) node.totalScore.longValue()) / totalScore.longValue()) - Math.sqrt(2 * Math.log(plays.longValue()) / node.plays.longValue());
+                final long nodePlays = node.plays.longValue();
+                final double rawScore = (((double) node.totalScore.longValue()) / totalScore.longValue()) - Math.sqrt(2 * Math.log(plays.longValue()) / nodePlays);
+                final double score = rawScore + node.gameState.bias / (nodePlays + 1);
                 if (score > max) {
                     max = score;
                     maxNode = node;
