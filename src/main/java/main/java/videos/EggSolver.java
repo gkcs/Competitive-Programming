@@ -19,8 +19,8 @@ public class EggSolver {
             for (int j = 2; j < k + 1; j++) {
                 results[i][j] = Integer.MAX_VALUE;
                 for (int x = 1; x < i; x++) {
-                    final int brokenEggResult = results[x - 1][k - 1];
-                    final int EggSurvivedResult = results[i - x][k];
+                    final int brokenEggResult = results[x - 1][j - 1];
+                    final int EggSurvivedResult = results[i - x][j];
                     int temp = Math.max(brokenEggResult, EggSurvivedResult) + 1;
                     if (temp < results[i][j]) {
                         results[i][j] = temp;
