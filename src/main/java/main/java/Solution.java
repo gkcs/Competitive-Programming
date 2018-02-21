@@ -7,33 +7,54 @@ import java.util.Arrays;
 
 public class Solution {
     public static void main(String[] args) throws IOException {
-        final BufferedReader inputReader = new BufferedReader(new InputStreamReader(System.in));
-        final StringBuilder stringBuilder = new StringBuilder();
-        final int t = 1;
-        final Solution solution = new Solution();
-        for (int test = 0; test < t; test++) {
-            final long a[] = new long[Integer.parseInt(inputReader.readLine())];
-            final String[] split = inputReader.readLine().split(" ");
-            for (int i = 0; i < split.length; i++) {
-                a[i] = Integer.parseInt(split[i]);
+        int n = 5, m = 5;
+        int matrix[][] = new int[n][m];
+        int sum[][] = new int[n][m];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                matrix[i][j] = i * n + j + 1;
+                int sumOfPreviousColumn;
+                if (j == 0)
+                    sumOfPreviousColumn = 0;
+                else
+                    sumOfPreviousColumn = sum[i][j - 1];
+                int sumOfPreviousRow;
+                if (i == 0)
+                    sumOfPreviousRow = 0;
+                else
+                    sumOfPreviousRow = sum[i - 1][j];
+                int sumOfDiagonal;
+                if (i == 0 || j == 0) {
+                    sumOfDiagonal = 0;
+                } else {
+                    sumOfDiagonal = sum[i - 1][j - 1];
+                }
+                sum[i][j] = matrix[i][j]
+                        + sumOfPreviousColumn
+                        + sumOfPreviousRow
+                        - sumOfDiagonal;
             }
-            stringBuilder.append(solution.getAnswer(a)).append('\n');
         }
-        System.out.println(stringBuilder);
-    }
-
-    public long getAnswer(final long[] a) {
-        Arrays.sort(a);
-        final long powersOf2[] = new long[a.length];
-        final long mod = 1000000007;
-        powersOf2[0] = 1;
-        for (int i = 1; i < a.length; i++) {
-            powersOf2[i] = (powersOf2[i - 1] << 1) % mod;
+        for (int i = 0; i < n; i++) {
+            System.out.println(Arrays.toString(matrix[i]));
         }
-        long ans = 0;
-        for (int i = 0; i < a.length; i++) {
-            ans = (ans + (powersOf2[i] - powersOf2[a.length - i - 1]) * a[i]) % mod;
+        System.out.println();
+        System.out.println();
+        for (int i = 0; i < n; i++) {
+            System.out.println(Arrays.toString(sum[i]));
         }
-        return ans;
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        String s = reader.readLine();
+        while (!s.equalsIgnoreCase("Quit")) {
+            int r1 = Integer.parseInt(reader.readLine()) - 1,
+                    r2 = Integer.parseInt(reader.readLine()) - 1,
+                    c1 = Integer.parseInt(reader.readLine()) - 1,
+                    c2 = Integer.parseInt(reader.readLine()) - 1;
+            System.out.println(sum[r2][c2]
+                    - sum[r1 - 1][c2]
+                    - sum[r2][c1 - 1]
+                    + sum[r1 - 1][c1 - 1]);
+            s = reader.readLine();
+        }
     }
 }
