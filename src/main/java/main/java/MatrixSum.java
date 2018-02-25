@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 
-public class Solution {
+public class MatrixSum {
     public static void main(String[] args) throws IOException {
         int n = 5, m = 5;
         int matrix[][] = new int[n][m];
