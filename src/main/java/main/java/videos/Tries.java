@@ -14,6 +14,7 @@ public class Tries {
         final Trie trie = new Trie();
         setOfStrings.forEach(trie::insert);
         System.out.println(trie.query("psst"));
+        System.out.println(trie.query("psstq"));
         trie.update("qqrs", "psst");
         System.out.println(trie.query("qqrs"));
         System.out.println(trie.query("psst"));
@@ -30,10 +31,11 @@ class Trie {
     public int query(final String s) {
         TrieNode current = root;
         for (int i = 0; i < s.length(); i++) {
-            if (current == null) {
-                return 0;
-            }
-            current = current.next(s.charAt(i));
+        	if(current==null || current.next(s.charAt(i))==null) {
+				return 0;
+			}
+			else
+				current=current.next(s.charAt(i));
         }
         return current.terminating;
     }
