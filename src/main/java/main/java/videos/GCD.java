@@ -40,13 +40,16 @@ public class GCD {
         while ((a & 1) == 0) {
             a = a >> 1;
         }
+        while ((b & 1) == 0) {
+            b = b >> 1;
+        }
         while (b != 0) {
-            while ((b & 1) == 0) {
-                b = b >> 1;
-            }
             int temp = a - b;
             a = b;
             b = temp;
+            while ((b & 1) == 0 && b > 0) {
+                b = b >> 1;
+            }
             if (a < b) {
                 int tempSwap = a;
                 a = b;
