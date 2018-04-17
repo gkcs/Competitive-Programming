@@ -25,7 +25,15 @@
             <artifactId>junit</artifactId>
             <version>4.12</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-youtube</artifactId>
+            <version>v3-rev194-1.23.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client-extensions</artifactId>
+            <version>1.6.0-beta</version>
+        </dependency>
     </dependencies>
-
-
 </project>
