@@ -28,6 +28,12 @@ public class GCD {
     }
 
     private static int binaryGcd(int a, int b) {
+		if (a < b) {
+			int tempSwap = a;
+			a = b;
+			b = tempSwap;
+		}
+		
         if (b == 0) {
             return a;
         }
