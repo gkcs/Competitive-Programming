@@ -111,15 +111,16 @@ class TreeNode {
 
     private double simulate(final LargeBoard board, int player) {
         int numberOfMovesPlayed = board.movesPlayed;
-        while (!board.isDecided()) {
+        while (board.result() == 0) {
             final int possibilities[] = new int[9];
             int movesToPlay = 0;
             for (int position = 0; position < 81; position++) {
                 if (board.canPlay(position)) {
                     possibilities[movesToPlay] = position;
                     movesToPlay++;
-                    if (board.result(player)) {
-                        return player == 1 ? 1 : 0;
+                    final int result = board.result();
+                    if (result != 0) {
+                        return result == player ? 1 : 0;
                     }
                 }
             }
@@ -178,9 +179,10 @@ class TreeNode {
 }
 
 class LargeBoard {
+    public static final int FULL = (1 << 10) - 1;
     int movesPlayed;
-    //todo: check if the board is occupied entirely
-    int largeBoard, largeCaptures;
+    int largeBoard, largeCaptures, largeOccupied;
+    //todo: won't work. Persisted moves are never -1
     int moves[] = new int[81];
     final Board boards[] = new Board[9];
 
@@ -199,44 +201,59 @@ class LargeBoard {
             final int pRow = previousMove / 27, pCol = (previousMove % 9) / 3;
             assert bRow == pRow && bRow == pCol;
         }
-        boards[bRow * 3 + bCol].play(player, row * 3 + col);
+        final int position = bRow * 3 + bCol;
+        assert (largeOccupied & (1 << position)) == 0;
+        boards[position].play(player, row * 3 + col);
+        if (boards[position].occupied == FULL) {
+            largeOccupied = largeOccupied | (1 << position);
+        }
         movesPlayed++;
     }
 
     public void undo() {
         movesPlayed--;
         final int p = moves[movesPlayed];
-        final int bRow = p / 27, bCol = (p % 9) / 3;
         final int row = (p / 9) % 3, col = p % 3;
-        final int position = row * 3 + col;
-        boards[bRow * 3 + bCol].undo(position);
-        final int bitFlipped = ~(1 << position);
+        final int bRow = p / 27, bCol = (p % 9) / 3;
+        boards[bRow * 3 + bCol].undo(row * 3 + col);
+        final int bitFlipped = ~(1 << (bRow * 3 + bCol));
         largeBoard = largeBoard & bitFlipped;
         largeCaptures = largeCaptures & bitFlipped;
+        largeOccupied = largeOccupied & bitFlipped;
     }
 
-    public boolean result(final int player) {
+    public int result() {
+        int firstScore = 0, secondScore = 0;
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 final int bit = 1 << (i * 3 + j);
                 if (boards[bit].result(1) == 1) {
                     largeBoard = largeBoard | bit;
+                    firstScore++;
                     largeCaptures = largeCaptures | bit;
+                    largeOccupied = largeOccupied | bit;
                 } else if (boards[bit].result(2) == 2) {
+                    secondScore++;
                     largeCaptures = largeCaptures | bit;
+                    largeOccupied = largeOccupied | bit;
+                } else if (boards[bit].occupied == FULL) {
+                    largeOccupied = largeOccupied | bit;
                 }
             }
         }
-        return Board.evaluateBoard(player, largeBoard, largeCaptures) == player;
-    }
-
-    @Override
-    public String toString() {
-        return "LargeBoard{" +
-                "largeBoard=" + largeBoard +
-                ", largeCaptures=" + largeCaptures +
-                ", boards=" + Arrays.deepToString(boards) +
-                '}';
+        if (firstScore > 4) {
+            return 1;
+        } else if (secondScore > 4) {
+            return 2;
+        } else if (Board.evaluateBoard(1, largeBoard, largeCaptures) == 1) {
+            return 1;
+        } else if (Board.evaluateBoard(2, largeBoard, largeCaptures) == 2) {
+            return 2;
+        } else if (largeOccupied == FULL) {
+            return firstScore > secondScore ? 1 : (secondScore > firstScore ? 2 : 0);
+        } else {
+            return 0;
+        }
     }
 
     public boolean canPlay(final int p) {
@@ -249,12 +266,17 @@ class LargeBoard {
                 return false;
             }
         }
-        return (boards[bRow * 3 + bCol].occupied & (1 << (row * 3 + col))) == 0;
+        return ((largeOccupied & (1 << (bRow * 3 + bCol))) == 0)
+                && (boards[bRow * 3 + bCol].occupied & (1 << (row * 3 + col))) == 0;
     }
 
-    //todo: check for win by 4
-    public boolean isDecided() {
-        return result(1) || result(2);
+    @Override
+    public String toString() {
+        return "LargeBoard{" +
+                "largeBoard=" + largeBoard +
+                ", largeCaptures=" + largeCaptures +
+                ", boards=" + Arrays.deepToString(boards) +
+                '}';
     }
 }
 
