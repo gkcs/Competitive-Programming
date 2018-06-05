@@ -111,16 +111,16 @@ class TreeNode {
 
     private double simulate(final LargeBoard board, int player) {
         int numberOfMovesPlayed = board.movesPlayed;
-        while (board.result() == 0) {
-            final int possibilities[] = new int[9];
+        while (board.result() == -1) {
+            final int possibilities[] = new int[81];
             int movesToPlay = 0;
-            for (int position = 0; position < 81; position++) {
+            for (int position = 0; position < possibilities.length; position++) {
                 if (board.canPlay(position)) {
                     possibilities[movesToPlay] = position;
                     movesToPlay++;
                     final int result = board.result();
-                    if (result != 0) {
-                        return result == player ? 1 : 0;
+                    if (result != -1) {
+                        return result == player ? 1 : (result == 0 ? 0.5 : 0);
                     }
                 }
             }
@@ -182,8 +182,7 @@ class LargeBoard {
     public static final int FULL = (1 << 10) - 1;
     int movesPlayed;
     int largeBoard, largeCaptures, largeOccupied;
-    //todo: won't work. Persisted moves are never -1
-    int moves[] = new int[81];
+    final int moves[] = new int[81];
     final Board boards[] = new Board[9];
 
     public LargeBoard() {
@@ -196,10 +195,10 @@ class LargeBoard {
         moves[movesPlayed] = p;
         final int bRow = p / 27, bCol = (p % 9) / 3;
         final int row = (p / 9) % 3, col = p % 3;
-        if (movesPlayed > 0 && moves[movesPlayed - 1] != -1) {
+        if (movesPlayed > 0) {
             final int previousMove = moves[movesPlayed - 1];
             final int pRow = previousMove / 27, pCol = (previousMove % 9) / 3;
-            assert bRow == pRow && bRow == pCol;
+            assert (largeOccupied & (1 << (pRow * 3 + pCol))) != 0 || (bRow == pRow && bCol == pCol);
         }
         final int position = bRow * 3 + bCol;
         assert (largeOccupied & (1 << position)) == 0;
@@ -226,17 +225,18 @@ class LargeBoard {
         int firstScore = 0, secondScore = 0;
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                final int bit = 1 << (i * 3 + j);
-                if (boards[bit].result(1) == 1) {
+                final int position = i * 3 + j;
+                final int bit = 1 << position;
+                if (boards[position].result(1) == 1) {
                     largeBoard = largeBoard | bit;
                     firstScore++;
                     largeCaptures = largeCaptures | bit;
                     largeOccupied = largeOccupied | bit;
-                } else if (boards[bit].result(2) == 2) {
+                } else if (boards[position].result(2) == 2) {
                     secondScore++;
                     largeCaptures = largeCaptures | bit;
                     largeOccupied = largeOccupied | bit;
-                } else if (boards[bit].occupied == FULL) {
+                } else if (boards[position].occupied == FULL) {
                     largeOccupied = largeOccupied | bit;
                 }
             }
@@ -252,17 +252,17 @@ class LargeBoard {
         } else if (largeOccupied == FULL) {
             return firstScore > secondScore ? 1 : (secondScore > firstScore ? 2 : 0);
         } else {
-            return 0;
+            return -1;
         }
     }
 
     public boolean canPlay(final int p) {
         final int bRow = p / 27, bCol = (p % 9) / 3;
         final int row = (p / 9) % 3, col = p % 3;
-        if (movesPlayed > 0 && moves[movesPlayed - 1] != -1) {
+        if (movesPlayed > 0) {
             final int previousMove = moves[movesPlayed - 1];
             final int pRow = previousMove / 27, pCol = (previousMove % 9) / 3;
-            if (!(bRow == pRow && bRow == pCol)) {
+            if (!((largeOccupied & (1 << (pRow * 3 + pCol))) != 0 || (bRow == pRow && bCol == pCol))) {
                 return false;
             }
         }
