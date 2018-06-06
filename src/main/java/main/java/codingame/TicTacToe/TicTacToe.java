@@ -106,7 +106,14 @@ class TreeNode {
         double maxUtility = child.map(TreeNode::getUtility).orElse(0d);
         int bestColumn = child.map(c -> c.col).orElse(0);
         final Set<Integer> expandedSet = children.keySet();
-        for (int i = 0; i < 81; i++) {
+        final int currentBoardIndex = board.currentBoard();
+        int max = 81;
+        int i = 0;
+        if (currentBoardIndex != -1) {
+            i = (currentBoardIndex / 3) * 27 + (currentBoardIndex % 3) * 3;
+            max = i + 21;
+        }
+        for (; i < max; i++) {
             if (board.canPlay(i) && !expandedSet.contains(i)) {
                 final double utility = Math.sqrt(Math.log(plays + 1)) + (0.05 / Math.abs(9 / 2.0 - i));
                 if (utility > maxUtility) {
@@ -126,9 +133,16 @@ class TreeNode {
         int numberOfMovesPlayed = board.movesPlayed;
         final int originalPlayer = player;
         while (board.result() == -1) {
-            final int possibilities[] = new int[81];
+            final int currentBoardIndex = board.currentBoard();
+            int max = 81;
+            int position = 0;
+            if (currentBoardIndex != -1) {
+                position = (currentBoardIndex / 3) * 27 + (currentBoardIndex % 3) * 3;
+                max = position + 21;
+            }
+            final int possibilities[] = new int[max - position];
             int movesToPlay = 0;
-            for (int position = 0; position < possibilities.length; position++) {
+            for (; position < max; position++) {
                 if (board.canPlay(position)) {
                     possibilities[movesToPlay] = position;
                     movesToPlay++;
@@ -293,6 +307,17 @@ class LargeBoard {
         }
         return ((largeOccupied & (1 << (bRow * 3 + bCol))) == 0)
                 && (boards[bRow * 3 + bCol].occupied & (1 << (row * 3 + col))) == 0;
+    }
+
+    public int currentBoard() {
+        if (movesPlayed > 0) {
+            final int previousMove = moves[movesPlayed - 1];
+            final int pMoveRow = (previousMove / 9) % 3, pMoveCol = previousMove % 3;
+            if ((largeOccupied & (1 << (pMoveRow * 3 + pMoveCol))) == 0) {
+                return pMoveRow * 3 + pMoveCol;
+            }
+        }
+        return -1;
     }
 
     @Override
