@@ -23,7 +23,7 @@ public class TicTacToe {
                 largeBoard.play(2, opponentMove);
                 algorithm.root = algorithm.root.getChild(opponentMove);
                 algorithm.root.parent = null;
-                algorithm.construct(largeBoard, 2);
+                algorithm.construct(largeBoard, 1);
                 System.err.println(largeBoard);
             }
             final int validActionCount = Integer.parseInt(in.readLine());
@@ -36,12 +36,13 @@ public class TicTacToe {
             largeBoard.play(1, bestMove);
             algorithm.root = algorithm.root.getChild(bestMove);
             algorithm.root.parent = null;
-            algorithm.construct(largeBoard, 1);
+            algorithm.construct(largeBoard, 2);
             System.err.println(largeBoard);
         }
     }
 }
 
+//todo: write unit tests for each function
 class MCTS {
     public static final int TIME_OUT = 50;
     public static final double CONSTANT = 10000d;
@@ -51,7 +52,7 @@ class MCTS {
         return root.getChildren()
                 .stream()
                 .max(Comparator.comparingDouble(node -> node.wins / (double) node.plays + node.plays / CONSTANT))
-                .map(c -> c.col)
+                .map(c -> c.move)
                 .orElseThrow(() -> new RuntimeException("No moves to play!"));
     }
 
@@ -60,7 +61,8 @@ class MCTS {
         while (System.currentTimeMillis() - startTime <= TIME_OUT) {
             TreeNode current = root;
             int position = current.selectChild(board);
-            while (current.getChild(position) != null) {
+            //todo: Why do you check for canPlay?
+            while (board.canPlay(position) && current.getChild(position) != null) {
                 current = current.getChild(position);
                 board.play(player, position);
                 position = current.selectChild(board);
@@ -80,15 +82,15 @@ class MCTS {
 class TreeNode {
     private static final Random random = new Random();
     public static final int SIMULATION_CONSTANT = 50;
-    public final int col;
+    public final int move;
     public int plays;
     public double wins;
     public TreeNode parent;
     private final int player;
     private Map<Integer, TreeNode> children = new HashMap<>();
 
-    public TreeNode(final int col, final TreeNode parent, final int player) {
-        this.col = col;
+    public TreeNode(final int move, final TreeNode parent, final int player) {
+        this.move = move;
         this.parent = parent;
         this.player = player;
     }
@@ -98,21 +100,39 @@ class TreeNode {
                 .stream()
                 .max(Comparator.comparingDouble(TreeNode::getUtility));
         double maxUtility = child.map(TreeNode::getUtility).orElse(0d);
-        int bestColumn = child.map(c -> c.col).orElse(0);
+        int bestColumn = child.map(c -> c.move).orElse(0);
         final Set<Integer> expandedSet = children.keySet();
         final int currentBoardIndex = board.currentBoard();
-        int max = 81;
-        int i = 0;
         if (currentBoardIndex != -1) {
-            i = (currentBoardIndex / 3) * 27 + (currentBoardIndex % 3) * 3;
-            max = i + 21;
-        }
-        for (; i < max; i++) {
-            if (board.canPlay(i) && !expandedSet.contains(i)) {
-                final double utility = Math.sqrt(Math.log(plays + 1)) + (0.05 / Math.abs(9 / 2.0 - i));
-                if (utility > maxUtility) {
-                    maxUtility = utility;
-                    bestColumn = i;
+            int start = (currentBoardIndex / 3) * 27 + (currentBoardIndex % 3) * 3;
+            for (int x = 0; x < 3; x++, start++) {
+                for (int y = 0; y < 3; y++) {
+                    int i = start + y * 9;
+                    if (board.canPlay(i) && !expandedSet.contains(i)) {
+                        final double utility = Math.sqrt(Math.log(plays + 1)) + (0.05 / Math.abs(40 - i));
+                        if (utility > maxUtility) {
+                            maxUtility = utility;
+                            bestColumn = i;
+                        }
+                    }
+                }
+            }
+        } else {
+            for (int boardIndex = 0; boardIndex < 9; boardIndex++) {
+                if ((board.largeOccupied & (1 << boardIndex)) == 0) {
+                    int start = (boardIndex / 3) * 27 + (boardIndex % 3) * 3;
+                    for (int x = 0; x < 3; x++, start++) {
+                        for (int y = 0; y < 3; y++) {
+                            int i = start + y * 9;
+                            if (board.canPlay(i) && !expandedSet.contains(i)) {
+                                final double utility = Math.sqrt(Math.log(plays + 1)) + (0.05 / Math.abs(40 - i));
+                                if (utility > maxUtility) {
+                                    maxUtility = utility;
+                                    bestColumn = i;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -127,19 +147,34 @@ class TreeNode {
         final int numberOfMovesPlayed = board.movesPlayed;
         final int originalPlayer = player;
         while (board.result() == -1) {
-            final int currentBoardIndex = board.currentBoard();
-            int max = 81;
-            int position = 0;
-            if (currentBoardIndex != -1) {
-                position = (currentBoardIndex / 3) * 27 + (currentBoardIndex % 3) * 3;
-                max = position + 21;
-            }
-            final int possibilities[] = new int[max - position];
             int movesToPlay = 0;
-            for (; position < max; position++) {
-                if (board.canPlay(position)) {
-                    possibilities[movesToPlay] = position;
-                    movesToPlay++;
+            final int currentBoardIndex = board.currentBoard();
+            final int possibilities[] = new int[currentBoardIndex != -1 ? 9 : 81];
+            if (currentBoardIndex != -1) {
+                int start = (currentBoardIndex / 3) * 27 + (currentBoardIndex % 3) * 3;
+                for (int x = 0; x < 3; x++, start++) {
+                    for (int y = 0; y < 3; y++) {
+                        int position = start + y * 9;
+                        if (board.canPlay(position)) {
+                            possibilities[movesToPlay] = position;
+                            movesToPlay++;
+                        }
+                    }
+                }
+            } else {
+                for (int boardIndex = 0; boardIndex < 9; boardIndex++) {
+                    if ((board.largeOccupied & (1 << boardIndex)) == 0) {
+                        int start = (boardIndex / 3) * 27 + (boardIndex % 3) * 3;
+                        for (int x = 0; x < 3; x++, start++) {
+                            for (int y = 0; y < 3; y++) {
+                                int position = start + y * 9;
+                                if (board.canPlay(position)) {
+                                    possibilities[movesToPlay] = position;
+                                    movesToPlay++;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if (movesToPlay == 0) {
@@ -188,14 +223,14 @@ class TreeNode {
     @Override
     public String toString() {
         return "TreeNode{" +
-                "\ncol=" + col +
+                "\nmove=" + move +
                 ", \nplays=" + plays +
                 ", \nwins=" + wins +
-                ", \nparent=" + (parent == null ? -1 : parent.col) +
+                ", \nparent=" + (parent == null ? -1 : parent.move) +
                 ", \nplayer=" + player +
                 ", \nchildren=" + children.values()
                 .stream()
-                .map(c -> "MOVE: " + c.col + " WINS: " + c.wins + " PLAYS: " + c.plays + "\n")
+                .map(node -> "MOVE: " + node.move + " WINS: " + node.wins + " PLAYS: " + node.plays + "\n")
                 .collect(Collectors.joining("\n")) +
                 '}';
     }
@@ -318,9 +353,9 @@ class LargeBoard {
     @Override
     public String toString() {
         return "LargeBoard{" +
-                "\nlargeBoard=" + largeBoard +
-                ", \nlargeCaptures=" + largeCaptures +
-                ", \nlargeOccupied=" + largeOccupied +
+                "\nlargeBoard=" + Integer.toBinaryString(largeBoard) +
+                ", \nlargeCaptures=" + Integer.toBinaryString(largeCaptures) +
+                ", \nlargeOccupied=" + Integer.toBinaryString(largeOccupied) +
                 ", \nmovesPlayed=" + movesPlayed +
                 ", \nmoves=" + Arrays.toString(moves) +
                 ", \nboards=" + Arrays.deepToString(boards) +
