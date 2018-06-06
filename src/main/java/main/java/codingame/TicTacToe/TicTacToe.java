@@ -10,46 +10,59 @@ public class TicTacToe {
     public static void main(String args[]) throws IOException {
         final BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
         final LargeBoard largeBoard = new LargeBoard();
-        final MCTS algorithm = new MCTS(largeBoard);
+//        largeBoard.play(1, 0);
+//        largeBoard.play(1, 1);
+//        largeBoard.play(1, 3);
+//        largeBoard.play(1, 2);
+//        largeBoard.play(1, 7);
+//        largeBoard.play(1, 9);
+//        System.out.println(largeBoard);
+        final MCTS algorithm = new MCTS();
+        algorithm.construct(largeBoard, MCTS.TIME_OUT);
         while (true) {
             String line[] = in.readLine().split(" ");
             final int opponentRow = Integer.parseInt(line[0]), opponentCol = Integer.parseInt(line[1]);
             if (opponentCol >= 0) {
-                largeBoard.play(2, opponentRow * 9 + opponentCol);
+                final int opponentMove = opponentRow * 9 + opponentCol;
+                if (algorithm.root.getChild(opponentMove) == null) {
+                    algorithm.root.expand(largeBoard, opponentMove);
+                }
+                largeBoard.play(2, opponentMove);
+                algorithm.root = algorithm.root.getChild(opponentMove);
+                algorithm.construct(largeBoard, MCTS.TIME_OUT);
                 System.err.println(largeBoard);
             }
             final int validActionCount = Integer.parseInt(in.readLine());
-            int bRow = 0, bCol = 0;
             for (int i = 0; i < validActionCount; i++) {
-                line = in.readLine().split(" ");
-                bRow = Integer.parseInt(line[0]);
-                bCol = Integer.parseInt(line[1]);
+                in.readLine();
             }
             final int bestMove = algorithm.suggestMove();
-            final int row = bestMove / 3, col = bestMove % 3;
+            final int row = bestMove / 9, col = bestMove % 9;
+            System.out.println(row + " " + col);
             largeBoard.play(1, bestMove);
-            System.out.println(((bRow / 3) * 3 + row) + " " + ((bCol / 3) * 3 + col));
+            algorithm.root = algorithm.root.getChild(bestMove);
+            algorithm.construct(largeBoard, MCTS.TIME_OUT);
             System.err.println(largeBoard);
         }
     }
 }
 
 class MCTS {
-    public static final int TIME_OUT = 200;
+    public static final int TIME_OUT = 50;
     public static final double CONSTANT = 10000d;
-    private final TreeNode root = new TreeNode(-1, null, 1);
+    TreeNode root = new TreeNode(-1, null, 1);
 
     public int suggestMove() {
         return root.getChildren()
                 .stream()
                 .max(Comparator.comparingDouble(node -> node.wins / (double) node.plays + node.plays / CONSTANT))
                 .map(c -> c.col)
-                .orElse(0);
+                .orElseThrow(() -> new RuntimeException("No moves to play!"));
     }
 
-    public MCTS(final LargeBoard board) {
+    public void construct(final LargeBoard board, final int timeOut) {
         final long startTime = System.currentTimeMillis();
-        while (System.currentTimeMillis() - startTime <= TIME_OUT) {
+        while (System.currentTimeMillis() - startTime <= timeOut) {
             TreeNode current = root;
             int position = current.selectChild(board);
             int player = 1;
@@ -111,6 +124,7 @@ class TreeNode {
 
     private double simulate(final LargeBoard board, int player) {
         int numberOfMovesPlayed = board.movesPlayed;
+        final int originalPlayer = player;
         while (board.result() == -1) {
             final int possibilities[] = new int[81];
             int movesToPlay = 0;
@@ -120,9 +134,12 @@ class TreeNode {
                     movesToPlay++;
                     final int result = board.result();
                     if (result != -1) {
-                        return result == player ? 1 : (result == 0 ? 0.5 : 0);
+                        return result == originalPlayer ? 1 : (result == 0 ? 0.5 : 0);
                     }
                 }
+            }
+            if (movesToPlay == 0) {
+                break;
             }
             board.play(player, possibilities[random.nextInt(movesToPlay)]);
             player = player == 1 ? 2 : 1;
@@ -165,21 +182,21 @@ class TreeNode {
     @Override
     public String toString() {
         return "TreeNode{" +
-                "col=" + col +
-                ", plays=" + plays +
-                ", wins=" + wins +
-                ", parent=" + (parent == null ? -1 : parent.col) +
-                ", player=" + player +
-                ", children=" + children.values()
+                "\ncol=" + col +
+                ", \nplays=" + plays +
+                ", \nwins=" + wins +
+                ", \nparent=" + (parent == null ? -1 : parent.col) +
+                ", \nplayer=" + player +
+                ", \nchildren=" + children.values()
                 .stream()
-                .map(c -> "COL: " + c.col + " WINS: " + c.wins + " PLAYS: " + c.plays + "\n")
-                .collect(Collectors.joining(",")) +
+                .map(c -> "MOVE: " + c.col + " WINS: " + c.wins + " PLAYS: " + c.plays + "\n")
+                .collect(Collectors.joining("\n")) +
                 '}';
     }
 }
 
 class LargeBoard {
-    public static final int FULL = (1 << 10) - 1;
+    public static final int FULL = (1 << 9) - 1;
     int movesPlayed;
     int largeBoard, largeCaptures, largeOccupied;
     final int moves[] = new int[81];
@@ -197,14 +214,25 @@ class LargeBoard {
         final int row = (p / 9) % 3, col = p % 3;
         if (movesPlayed > 0) {
             final int previousMove = moves[movesPlayed - 1];
-            final int pRow = previousMove / 27, pCol = (previousMove % 9) / 3;
-            assert (largeOccupied & (1 << (pRow * 3 + pCol))) != 0 || (bRow == pRow && bCol == pCol);
+            final int pMoveRow = (previousMove / 9) % 3, pMoveCol = previousMove % 3;
+            if (!((largeOccupied & (1 << (pMoveRow * 3 + pMoveCol))) != 0 || (bRow == pMoveRow && bCol == pMoveCol))) {
+                throw new RuntimeException();
+            }
         }
         final int position = bRow * 3 + bCol;
-        assert (largeOccupied & (1 << position)) == 0;
+        int bit = 1 << position;
+        if ((largeOccupied & bit) != 0) {
+            throw new RuntimeException();
+        }
         boards[position].play(player, row * 3 + col);
-        if (boards[position].occupied == FULL) {
-            largeOccupied = largeOccupied | (1 << position);
+        if (boards[position].result(player) == player) {
+            if (player == 1) {
+                largeBoard = largeBoard | bit;
+            }
+            largeCaptures = largeCaptures | bit;
+            largeOccupied = largeOccupied | bit;
+        } else if (boards[position].occupied == FULL) {
+            largeOccupied = largeOccupied | bit;
         }
         movesPlayed++;
     }
@@ -223,22 +251,19 @@ class LargeBoard {
 
     public int result() {
         int firstScore = 0, secondScore = 0;
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                final int position = i * 3 + j;
-                final int bit = 1 << position;
-                if (boards[position].result(1) == 1) {
-                    largeBoard = largeBoard | bit;
-                    firstScore++;
-                    largeCaptures = largeCaptures | bit;
-                    largeOccupied = largeOccupied | bit;
-                } else if (boards[position].result(2) == 2) {
-                    secondScore++;
-                    largeCaptures = largeCaptures | bit;
-                    largeOccupied = largeOccupied | bit;
-                } else if (boards[position].occupied == FULL) {
-                    largeOccupied = largeOccupied | bit;
-                }
+        for (int position = 0; position < 9; position++) {
+            final int bit = 1 << position;
+            if (boards[position].result(1) == 1) {
+                largeBoard = largeBoard | bit;
+                firstScore++;
+                largeCaptures = largeCaptures | bit;
+                largeOccupied = largeOccupied | bit;
+            } else if (boards[position].result(2) == 2) {
+                secondScore++;
+                largeCaptures = largeCaptures | bit;
+                largeOccupied = largeOccupied | bit;
+            } else if (boards[position].occupied == FULL) {
+                largeOccupied = largeOccupied | bit;
             }
         }
         if (firstScore > 4) {
@@ -261,8 +286,8 @@ class LargeBoard {
         final int row = (p / 9) % 3, col = p % 3;
         if (movesPlayed > 0) {
             final int previousMove = moves[movesPlayed - 1];
-            final int pRow = previousMove / 27, pCol = (previousMove % 9) / 3;
-            if (!((largeOccupied & (1 << (pRow * 3 + pCol))) != 0 || (bRow == pRow && bCol == pCol))) {
+            final int pMoveRow = (previousMove / 9) % 3, pMoveCol = previousMove % 3;
+            if (!((largeOccupied & (1 << (pMoveRow * 3 + pMoveCol))) != 0 || (bRow == pMoveRow && bCol == pMoveCol))) {
                 return false;
             }
         }
@@ -273,9 +298,12 @@ class LargeBoard {
     @Override
     public String toString() {
         return "LargeBoard{" +
-                "largeBoard=" + largeBoard +
-                ", largeCaptures=" + largeCaptures +
-                ", boards=" + Arrays.deepToString(boards) +
+                "\nlargeBoard=" + largeBoard +
+                ", \nlargeCaptures=" + largeCaptures +
+                ", \nlargeOccupied=" + largeOccupied +
+                ", \nmovesPlayed=" + movesPlayed +
+                ", \nmoves=" + Arrays.toString(moves) +
+                ", \nboards=" + Arrays.deepToString(boards) +
                 '}';
     }
 }
@@ -297,7 +325,9 @@ class Board {
 
     public void play(final int player, final int p) {
         final int bit = 1 << p;
-        assert (occupied & bit) == 0;
+        if ((occupied & bit) != 0) {
+            throw new RuntimeException();
+        }
         if (player == 1) {
             board = board | bit;
         }
@@ -306,7 +336,9 @@ class Board {
 
     public void undo(final int p) {
         final int bit = 1 << p;
-        assert (occupied & bit) != 0;
+        if ((occupied & bit) == 0) {
+            throw new RuntimeException();
+        }
         board = board & (~bit);
         occupied = occupied & (~bit);
         decided = 0;
@@ -319,9 +351,15 @@ class Board {
     public static int evaluateBoard(final int player, int board, int occupied) {
         final int boardForPlayer = player == 1 ? board : ~board;
         final int effectiveBoard = boardForPlayer & occupied;
-        for (final int winningState : winningStates) {
-            if (effectiveBoard >= winningState) {
-                if (winningState == (effectiveBoard & winningState)) {
+        int i = 0;
+        for (; i < winningStates.length; i++) {
+            if (effectiveBoard >= winningStates[i]) {
+                break;
+            }
+        }
+        for (; i < winningStates.length; i++) {
+            if (effectiveBoard >= winningStates[i]) {
+                if (winningStates[i] == (effectiveBoard & winningStates[i])) {
                     return player;
                 }
             } else {
@@ -333,6 +371,6 @@ class Board {
 
     @Override
     public String toString() {
-        return "Occupied:" + Integer.toBinaryString(occupied) + "\nBoard:" + Integer.toBinaryString(board);
+        return "Occupied:" + Integer.toBinaryString(occupied) + " Board:" + Integer.toBinaryString(board) + "\n";
     }
 }
