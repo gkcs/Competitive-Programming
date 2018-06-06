@@ -10,15 +10,8 @@ public class TicTacToe {
     public static void main(String args[]) throws IOException {
         final BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
         final LargeBoard largeBoard = new LargeBoard();
-//        largeBoard.play(1, 0);
-//        largeBoard.play(1, 1);
-//        largeBoard.play(1, 3);
-//        largeBoard.play(1, 2);
-//        largeBoard.play(1, 7);
-//        largeBoard.play(1, 9);
-//        System.out.println(largeBoard);
         final MCTS algorithm = new MCTS();
-        algorithm.construct(largeBoard, MCTS.TIME_OUT);
+        algorithm.construct(largeBoard, 1);
         while (true) {
             String line[] = in.readLine().split(" ");
             final int opponentRow = Integer.parseInt(line[0]), opponentCol = Integer.parseInt(line[1]);
@@ -29,7 +22,8 @@ public class TicTacToe {
                 }
                 largeBoard.play(2, opponentMove);
                 algorithm.root = algorithm.root.getChild(opponentMove);
-                algorithm.construct(largeBoard, MCTS.TIME_OUT);
+                algorithm.root.parent = null;
+                algorithm.construct(largeBoard, 2);
                 System.err.println(largeBoard);
             }
             final int validActionCount = Integer.parseInt(in.readLine());
@@ -41,7 +35,8 @@ public class TicTacToe {
             System.out.println(row + " " + col);
             largeBoard.play(1, bestMove);
             algorithm.root = algorithm.root.getChild(bestMove);
-            algorithm.construct(largeBoard, MCTS.TIME_OUT);
+            algorithm.root.parent = null;
+            algorithm.construct(largeBoard, 1);
             System.err.println(largeBoard);
         }
     }
@@ -60,12 +55,11 @@ class MCTS {
                 .orElseThrow(() -> new RuntimeException("No moves to play!"));
     }
 
-    public void construct(final LargeBoard board, final int timeOut) {
+    public void construct(final LargeBoard board, int player) {
         final long startTime = System.currentTimeMillis();
-        while (System.currentTimeMillis() - startTime <= timeOut) {
+        while (System.currentTimeMillis() - startTime <= TIME_OUT) {
             TreeNode current = root;
             int position = current.selectChild(board);
-            int player = 1;
             while (current.getChild(position) != null) {
                 current = current.getChild(position);
                 board.play(player, position);
@@ -89,7 +83,7 @@ class TreeNode {
     public final int col;
     public int plays;
     public double wins;
-    private TreeNode parent;
+    public TreeNode parent;
     private final int player;
     private Map<Integer, TreeNode> children = new HashMap<>();
 
@@ -130,7 +124,7 @@ class TreeNode {
     }
 
     private double simulate(final LargeBoard board, int player) {
-        int numberOfMovesPlayed = board.movesPlayed;
+        final int numberOfMovesPlayed = board.movesPlayed;
         final int originalPlayer = player;
         while (board.result() == -1) {
             final int currentBoardIndex = board.currentBoard();
@@ -146,10 +140,6 @@ class TreeNode {
                 if (board.canPlay(position)) {
                     possibilities[movesToPlay] = position;
                     movesToPlay++;
-                    final int result = board.result();
-                    if (result != -1) {
-                        return result == originalPlayer ? 1 : (result == 0 ? 0.5 : 0);
-                    }
                 }
             }
             if (movesToPlay == 0) {
@@ -158,10 +148,12 @@ class TreeNode {
             board.play(player, possibilities[random.nextInt(movesToPlay)]);
             player = player == 1 ? 2 : 1;
         }
+        final int r = board.result();
+        final double result = r == originalPlayer ? 1 : (r == 0 ? 0.5 : 0);
         while (board.movesPlayed > numberOfMovesPlayed) {
             board.undo();
         }
-        return 0.5;
+        return result;
     }
 
     public void backPropagate(final TreeNode node) {
@@ -296,6 +288,9 @@ class LargeBoard {
     }
 
     public boolean canPlay(final int p) {
+        if (p < 0) {
+            return false;
+        }
         final int bRow = p / 27, bCol = (p % 9) / 3;
         final int row = (p / 9) % 3, col = p % 3;
         if (movesPlayed > 0) {
