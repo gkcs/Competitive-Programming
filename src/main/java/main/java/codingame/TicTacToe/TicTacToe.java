@@ -20,6 +20,7 @@ public class TicTacToe {
                 if (algorithm.root.getChild(opponentMove) == null) {
                     algorithm.root.expand(largeBoard, opponentMove);
                 }
+                //todo: Fails sometimes? Occupied is full then
                 largeBoard.play(2, opponentMove);
                 algorithm.root = algorithm.root.getChild(opponentMove);
                 algorithm.root.parent = null;
