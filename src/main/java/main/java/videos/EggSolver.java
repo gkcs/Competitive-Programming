@@ -9,10 +9,10 @@ public class EggSolver {
 
     public int solveUsingDp(int n, int k) {
         final int results[][] = new int[n + 1][k + 1];
-        for (int i = 0; i < n + 1; i++) {
+        for (int i = 1; i < n + 1; i++) {
             results[i][1] = i;
         }
-        for (int i = 0; i < k + 1; i++) {
+        for (int i = 1; i < k + 1; i++) {
             results[1][i] = 1;
         }
         for (int i = 2; i < n + 1; i++) {
