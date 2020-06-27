@@ -28,9 +28,7 @@ public class EggSolver {
                 }
             }
         }
-        for (final int[] a : results) {
-            System.out.println(Arrays.toString(a));
-        }
+        System.out.println(Arrays.deepToString(a));
         return results[n][k];
     }
 }
